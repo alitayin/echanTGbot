@@ -1,0 +1,50 @@
+# Ignore sensitive/local files
+.env
+
+# Ignore local docs not to commit
+ARCHITECTURE.md
+
+# Ignore folders not meant for version control
+testscripts/
+.cursor/
+
+# Node dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env variants (keep example if any)
+.env.*
+!.env.example
+
+# Build outputs and coverage
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Caches
+.eslintcache
+.parcel-cache/
+.rpt2_cache/
+.webpack-cache/
+.cache/
+
+# OS/Editor
+.DS_Store
+.idea/
+.vscode/
+
+# Framework outputs (safe common ones)
+.next/
+.nuxt/
+.serverless/
+.vercel/
+
+

@@ -1,0 +1,24 @@
+{
+  "name": "xecbot",
+  "version": "2.3.10",
+  "description": "Layered Telegram bot for eCash (XEC) with modular architecture",
+  "main": "src/presentation/index.js",
+  "scripts": {
+    "start": "node src/presentation/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "alita",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^3.2.4",
+    "axios": "^1.4.0",
+    "chronik-client": "^3.4.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "ecash-quicksend": "^1.0.7",
+    "ecashaddrjs": "^2.0.0",
+    "form-data": "^4.0.4",
+    "node-telegram-bot-api": "^0.61.0"
+  }
+}
