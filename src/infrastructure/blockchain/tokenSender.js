@@ -18,7 +18,10 @@ function getMnemonic() {
  * @returns {ChronikClient} Chronik client instance
  */
 function createChronikClient() {
-    const chronikUrl = CHRONIK_URLS[0] || 'https://chronik1.alitayin.com';
+    const chronikUrl = CHRONIK_URLS[0];
+    if (!chronikUrl) {
+        throw new Error('CHRONIK_URLS not configured properly');
+    }
     console.log(`📡 Using Chronik client: ${chronikUrl}`);
     return new ChronikClient(chronikUrl);
 }
@@ -102,4 +105,5 @@ module.exports = {
     sendAlp,
     isMnemonicConfigured
 };
+
 

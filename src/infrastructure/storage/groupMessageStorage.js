@@ -75,9 +75,9 @@ function getFormattedContext(chatId, currentMessageId, botUsername, contextLimit
     const messages = groupMessages.get(chatId) || [];
     const currentMsgIndex = messages.findIndex(m => m.messageId === currentMessageId);
     
-    console.log('\n=== 消息上下文调试 ===');
-    console.log('当前消息索引:', currentMsgIndex);
-    console.log('消息历史长度:', messages.length);
+    console.log('\n=== Message Context Debug ===');
+    console.log('Current message index:', currentMsgIndex);
+    console.log('Message history length:', messages.length);
     
     if (currentMsgIndex === -1) {
         return null;

@@ -33,7 +33,7 @@ function cleanExpiredCache() {
     expiredGroups.forEach(chatId => {
         groupAdmins.delete(chatId);
         cacheTimestamps.delete(chatId);
-        console.log(`🗑️ 清理过期缓存：群组 ${chatId}`);
+        console.log(`🗑️ Cleaned expired cache: group ${chatId}`);
     });
     
     // Clean whitelist
@@ -46,7 +46,7 @@ function cleanExpiredCache() {
     expiredWhitelist.forEach(userKey => {
         whitelistUsers.delete(userKey);
         whitelistTimestamps.delete(userKey);
-        console.log(`🗑️ 清理过期白名单：${userKey}`);
+        console.log(`🗑️ Cleaned expired whitelist: ${userKey}`);
     });
 }
 
@@ -80,7 +80,7 @@ function setCachedAdmins(chatId, adminData) {
     const now = Date.now();
     groupAdmins.set(chatId, adminData);
     cacheTimestamps.set(chatId, now);
-    console.log(`✅ 管理员缓存已更新：群组 ${chatId}`);
+    console.log(`✅ Admin cache updated: group ${chatId}`);
 }
 
 /**
@@ -120,7 +120,7 @@ function addUserToWhitelist(chatId, userId, reason = 'avatar_check_passed') {
     whitelistUsers.set(userKey, { reason, timestamp: now });
     whitelistTimestamps.set(userKey, now);
     
-    console.log(`✅ 用户已添加到白名单: ${userKey} (原因: ${reason})`);
+    console.log(`✅ User added to whitelist: ${userKey} (reason: ${reason})`);
 }
 
 /**
@@ -157,4 +157,5 @@ module.exports = {
     getWhitelistStats,
     getStoredAdmins
 };
+
 

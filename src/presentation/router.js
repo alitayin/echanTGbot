@@ -34,7 +34,9 @@ const {
 const { 
     handleSignup, 
     handleGetAddress, 
-    handleListAddresses 
+    handleListAddresses,
+    handleExportData,
+    handleImportData
 } = require('../application/usecases/signupHandler.js');
 const { handleSendCommand } = require('../application/usecases/sendHandler.js');
 
@@ -82,6 +84,8 @@ Welcome to alitayinGPTbot! Here is a list of available commands for admins:
 /listaddresses [page] - View all registered eCash addresses (paginated, 20 per page)
 /send <amount> - Send XEC to user (reply to their message)
 /send <tokenId> <amount> - Send SLP tokens to user (reply to their message)
+/exportdata - Export all user data to JSON file (for backup/migration)
+/importdata - Import user data from JSON file (reply to exported file)
 `;
 
 // Helper: should handle request
@@ -126,7 +130,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理举报命令 ---');
+        console.log('\n--- Processing report command ---');
         try {
             await handleReportCommand(msg, bot);
         } catch (error) {
@@ -146,7 +150,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理帮助命令 ---');
+        console.log('\n--- Processing help command ---');
         const helpMessage = ALLOWED_USERS.includes(msg.from.username) ? adminHelpMessage : userHelpMessage;
         await bot.sendMessage(msg.chat.id, helpMessage);
     });
@@ -164,7 +168,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理添加许可证命令 ---');
+        console.log('\n--- Processing add license command ---');
         try {
             await handleAddLicense(msg, bot);
         } catch (error) {
@@ -186,7 +190,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理移除许可证命令 ---');
+        console.log('\n--- Processing remove license command ---');
         try {
             await handleRemoveLicense(msg, bot);
         } catch (error) {
@@ -208,7 +212,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理查看许可证命令 ---');
+        console.log('\n--- Processing list licenses command ---');
         try {
             await handleListLicenses(msg, bot);
         } catch (error) {
@@ -226,7 +230,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理用户注册地址命令 ---');
+        console.log('\n--- Processing user signup command ---');
         try {
             await handleSignup(msg, bot);
         } catch (error) {
@@ -248,7 +252,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理查询用户地址命令 ---');
+        console.log('\n--- Processing get address command ---');
         try {
             await handleGetAddress(msg, bot);
         } catch (error) {
@@ -270,7 +274,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理查看所有地址命令 ---');
+        console.log('\n--- Processing list addresses command ---');
         try {
             // Parse page parameter (user provides 1-based, convert to 0-based)
             const parts = msg.text.trim().split(/\s+/);
@@ -297,12 +301,56 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理发送代币命令 ---');
+        console.log('\n--- Processing send token command ---');
         try {
             await handleSendCommand(msg, bot);
         } catch (error) {
             console.error('Failed to send tokens:', error);
             await bot.sendMessage(msg.chat.id, '❌ Failed to send tokens. Please try again.');
+        }
+    });
+
+    // Listener 3.8: exportdata (admin only)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/exportdata')) {
+            return;
+        }
+        if (!ALLOWED_USERS.includes(msg.from.username)) {
+            await bot.sendMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing export data command ---');
+        try {
+            await handleExportData(msg, bot);
+        } catch (error) {
+            console.error('Failed to export data:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to export data. Please try again.');
+        }
+    });
+
+    // Listener 3.9: importdata (admin only)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/importdata')) {
+            return;
+        }
+        if (!ALLOWED_USERS.includes(msg.from.username)) {
+            await bot.sendMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing import data command ---');
+        try {
+            await handleImportData(msg, bot);
+        } catch (error) {
+            console.error('Failed to import data:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to import data. Please try again.');
         }
     });
 
@@ -318,7 +366,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, pickDisabledMsg());
             return;
         }
-        console.log('\n--- 处理价格查询命令 ---');
+        console.log('\n--- Processing price query command ---');
         try {
             const loadingMessage = await bot.sendMessage(msg.chat.id, '📊 Getting latest price data...');
             const priceDto = await handlePriceCommand();
@@ -342,17 +390,17 @@ function registerRoutes(bot) {
         if (!isExplorerCommand) {
             return;
         }
-        console.log('\n--- 处理Explorer查询命令 ---');
+        console.log('\n--- Processing explorer query command ---');
         try {
             const parts = text.split(/\s+/);
             if (parts.length < 2) {
-                await bot.sendMessage(msg.chat.id, '用法：/explorer <地址> [页码]');
+                await bot.sendMessage(msg.chat.id, 'Usage: /explorer <address> [page]');
                 return;
             }
             const rawQuery = parts[1].trim();
-            const userPageInput = parts[2] ? parseInt(parts[2], 10) : 1; // 用户1基
-            const page = Number.isFinite(userPageInput) ? Math.max((userPageInput || 1) - 1, 0) : 0; // 内部0基
-            const displayPage = page + 1; // 显示仍用1基
+            const userPageInput = parts[2] ? parseInt(parts[2], 10) : 1; // User input is 1-based
+            const page = Number.isFinite(userPageInput) ? Math.max((userPageInput || 1) - 1, 0) : 0; // Internal 0-based
+            const displayPage = page + 1; // Display still uses 1-based
             const loadingMessage = await bot.sendMessage(msg.chat.id, `🔎 Fetching, page ${displayPage}...`);
             const result = await handleExplorerAddress(rawQuery, page);
             const { renderExplorerMessage } = require('./views/explorerView.js');
@@ -385,7 +433,7 @@ function registerRoutes(bot) {
             await bot.sendMessage(msg.chat.id, FEATURE_DISABLED_MSG);
             return;
         }
-        console.log('\n--- 处理Avalanche查询命令 ---');
+        console.log('\n--- Processing avalanche query command ---');
         try {
             const loadingMessage = await bot.sendMessage(msg.chat.id, '🗻 Getting latest Avalanche data...');
             const avalancheDto = await handleAvalancheCommand();
@@ -429,6 +477,8 @@ function registerRoutes(bot) {
             msg.text?.startsWith('/getaddress') ||
             msg.text?.startsWith('/listaddresses') ||
             msg.text?.startsWith('/send') ||
+            msg.text?.startsWith('/exportdata') ||
+            msg.text?.startsWith('/importdata') ||
             msg.text?.trim().toLowerCase() === "/start" ||
             msg.text?.trim().toLowerCase() === "/help" ||
             msg.text?.trim().toLowerCase() === "/price" ||
@@ -440,7 +490,7 @@ function registerRoutes(bot) {
             return;
         }
 
-        console.log('\n--- 处理对话请求 ---');
+        console.log('\n--- Processing conversation request ---');
 
         let query = msg.caption || msg.text || '';
         query = query
@@ -457,7 +507,7 @@ function registerRoutes(bot) {
         const isEchanMention = /\bechan\b/i.test(textContent);
 
         if (isEchanMention || isDirectMention) {
-            console.log('🔍 检查消息是否需要回复');
+            console.log('🔍 Checking if message needs response');
             const prep = await prepareConversationQuery(ports, query, msg.from.id);
             if (!prep.shouldRespond) {
                 return;
@@ -478,14 +528,14 @@ function registerRoutes(bot) {
 
         // Handle different message types
         if (msg.photo && msg.photo.length > 0) {
-            console.log('🖼️ 处理图片消息');
+            console.log('🖼️ Processing photo message');
             if (!query) {
                 query = "Describe this image";
             }
             const photo = msg.photo[msg.photo.length - 1];
             handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED_USERS, ports);
         } else if (msg.text) {
-            console.log('💭 处理文本对话');
+            console.log('💭 Processing text conversation');
             handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_USERS, ports);
         }
     });

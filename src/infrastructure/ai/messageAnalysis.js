@@ -29,14 +29,14 @@ async function fetchMessageAnalysis(query, userId) {
             const client = currentKey === ADDITIONAL_API_KEY ? primaryClient : backupClient;
             const data = await client.sendTextRequest(query, userId);
             const answer = JSON.parse(data.answer);
-            console.log(`✅ 消息分析成功 (尝试 ${totalAttempts}/${maxTotalAttempts})`);
+            console.log(`✅ Message analysis successful (attempt ${totalAttempts}/${maxTotalAttempts})`);
             return answer;
 
         } catch (error) {
             if (error.response?.status === 400) {
                 console.log(`Message analysis failed, attempt ${totalAttempts}/${maxTotalAttempts}`);
             } else {
-                console.error(`❌ 消息分析数据获取失败 (尝试 ${totalAttempts}/${maxTotalAttempts}):`, error.message || error);
+                console.error(`❌ Message analysis data fetch failed (attempt ${totalAttempts}/${maxTotalAttempts}):`, error.message || error);
             }
 
             // Switch to backup key if primary exhausted or 400
@@ -45,15 +45,15 @@ async function fetchMessageAnalysis(query, userId) {
                 totalAttempts < maxTotalAttempts) {
                 currentKey = ADDITIONAL_API_KEY_BACKUP;
                 attempt = 0; // reset per-key retries
-                console.log('🔄 切换到备用消息分析API密钥');
+                console.log('🔄 Switching to backup message analysis API key');
             } else if (totalAttempts >= maxTotalAttempts) {
-                console.log('⚠️ 达到最大总尝试次数，停止重试');
+                console.log('⚠️ Max total attempts reached, stopping retry');
                 break;
             }
         }
     }
     
-    console.log('❌ 消息分析失败，返回null');
+    console.log('❌ Message analysis failed, returning null');
     return null;
 }
 
@@ -73,7 +73,7 @@ async function batchMessageAnalysis(messages) {
                 analysis: result
             });
         } catch (error) {
-            console.error(`批量分析失败 - 消息: ${message.query.substring(0, 50)}...`, error.message);
+            console.error(`Batch analysis failed - message: ${message.query.substring(0, 50)}...`, error.message);
             results.push({
                 ...message,
                 analysis: null,
@@ -96,7 +96,7 @@ async function checkNeedsResponse(query, userId) {
         const analysis = await fetchMessageAnalysis(query, userId);
         return analysis?.needs_response === true;
     } catch (error) {
-        console.error('检查是否需要响应失败:', error.message);
+        console.error('Failed to check if response needed:', error.message);
         return false;
     }
 }

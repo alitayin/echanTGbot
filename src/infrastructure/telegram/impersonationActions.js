@@ -22,7 +22,7 @@ async function getChatAdmins(bot, chatId) {
                 fullName: `${admin.user.first_name || ''} ${admin.user.last_name || ''}`.trim()
             }));
     } catch (error) {
-        console.error(`获取群组 ${chatId} 管理员列表失败:`, error.message);
+        console.error(`Failed to get admin list for group ${chatId}:`, error.message);
         return [];
     }
 }
@@ -45,7 +45,7 @@ async function getUserAvatarUrl(bot, userId) {
         const file = await bot.getFile(largestPhoto.file_id);
         return `https://api.telegram.org/file/bot${TELEGRAM_TOKEN}/${file.file_path}`;
     } catch (error) {
-        console.error('获取用户头像失败:', error.message);
+        console.error('Failed to get user avatar:', error.message);
         return null;
     }
 }
@@ -69,7 +69,7 @@ async function getChatMemberInfo(bot, chatId, userId) {
             status: member.status
         };
     } catch (error) {
-        console.error('获取用户信息失败:', error.message);
+        console.error('Failed to get user info:', error.message);
         return null;
     }
 }
@@ -86,7 +86,7 @@ async function isBotAdmin(bot, chatId) {
         const botMember = await bot.getChatMember(chatId, botInfo.id);
         return ['creator', 'administrator'].includes(botMember.status);
     } catch (error) {
-        console.error('检查机器人权限失败:', error.message);
+        console.error('Failed to check bot permissions:', error.message);
         return false;
     }
 }
@@ -103,7 +103,7 @@ async function banUser(bot, chatId, userId) {
         await bot.banChatMember(chatId, userId);
         return true;
     } catch (error) {
-        console.error('踢出用户失败:', error.message);
+        console.error('Failed to ban user:', error.message);
         return false;
     }
 }
@@ -120,7 +120,7 @@ async function sendMessage(bot, chatId, text) {
         await bot.sendMessage(chatId, text);
         return true;
     } catch (error) {
-        console.error('发送消息失败:', error.message);
+        console.error('Failed to send message:', error.message);
         return false;
     }
 }
@@ -133,4 +133,5 @@ module.exports = {
     banUser,
     sendMessage
 };
+
 

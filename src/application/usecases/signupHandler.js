@@ -155,9 +155,104 @@ async function handleListAddresses(msg, bot, page = 0) {
     }
 }
 
+async function handleExportData(msg, bot) {
+    try {
+        const { exportAllData } = require('../../infrastructure/storage/userAddressStore.js');
+        
+        await bot.sendMessage(msg.chat.id, '📦 Exporting user data...');
+        
+        const jsonData = await exportAllData();
+        
+        // Send as file
+        const buffer = Buffer.from(jsonData, 'utf-8');
+        const filename = `xecbot-users-export-${new Date().toISOString().split('T')[0]}.json`;
+        
+        await bot.sendDocument(
+            msg.chat.id,
+            buffer,
+            {},
+            {
+                filename: filename,
+                contentType: 'application/json'
+            }
+        );
+        
+        const data = JSON.parse(jsonData);
+        await bot.sendMessage(
+            msg.chat.id,
+            `✅ Export completed!\n\n📊 Total users: ${data.totalUsers}\n📅 Export date: ${new Date(data.exportDate).toLocaleString()}\n\n💡 To import this data on another server, use:\n/importdata (reply to the exported file)`
+        );
+        
+        console.log(`Data exported by @${msg.from.username}: ${data.totalUsers} users`);
+    } catch (error) {
+        console.error('Error in handleExportData:', error);
+        await bot.sendMessage(msg.chat.id, '❌ Failed to export data. Please try again later.');
+    }
+}
+
+async function handleImportData(msg, bot) {
+    try {
+        // Check if replying to a document
+        if (!msg.reply_to_message || !msg.reply_to_message.document) {
+            await bot.sendMessage(
+                msg.chat.id,
+                '❌ Usage: Reply to an exported JSON file with /importdata\n\n⚠️ Warning: This will add/update users in the database. Existing users with the same ID will be updated.'
+            );
+            return;
+        }
+
+        const document = msg.reply_to_message.document;
+        
+        // Check file type
+        if (!document.file_name.endsWith('.json')) {
+            await bot.sendMessage(msg.chat.id, '❌ Please reply to a JSON file exported by /exportdata');
+            return;
+        }
+
+        await bot.sendMessage(msg.chat.id, '📥 Importing user data...');
+
+        // Download file
+        const fileLink = await bot.getFileLink(document.file_id);
+        const axios = require('axios');
+        const response = await axios.get(fileLink);
+        const jsonData = JSON.stringify(response.data);
+
+        // Import data
+        const { importAllData } = require('../../infrastructure/storage/userAddressStore.js');
+        const results = await importAllData(jsonData);
+
+        // Report results
+        let message = `✅ Import completed!\n\n`;
+        message += `📊 Successfully imported: ${results.success} users\n`;
+        
+        if (results.failed > 0) {
+            message += `⚠️ Failed: ${results.failed} users\n\n`;
+            message += `Errors:\n`;
+            results.errors.slice(0, 5).forEach(error => {
+                message += `• ${error}\n`;
+            });
+            
+            if (results.errors.length > 5) {
+                message += `\n... and ${results.errors.length - 5} more errors`;
+            }
+        }
+
+        await bot.sendMessage(msg.chat.id, message);
+        console.log(`Data imported by @${msg.from.username}: ${results.success} success, ${results.failed} failed`);
+    } catch (error) {
+        console.error('Error in handleImportData:', error);
+        await bot.sendMessage(
+            msg.chat.id,
+            `❌ Failed to import data: ${error.message}\n\nPlease make sure the file is a valid export from /exportdata`
+        );
+    }
+}
+
 module.exports = {
     handleSignup,
     handleGetAddress,
-    handleListAddresses
+    handleListAddresses,
+    handleExportData,
+    handleImportData
 };
 

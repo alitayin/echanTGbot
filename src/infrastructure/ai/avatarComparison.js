@@ -41,7 +41,7 @@ async function compareAvatars(avatarUrl1, avatarUrl2, userId) {
         const result = JSON.parse(response.data.answer);
         return result.spam === false && result.similar_avatar === true;
     } catch (error) {
-        console.error('头像比较API调用失败:', error.message);
+        console.error('Avatar comparison API call failed:', error.message);
         return false;
     }
 }
@@ -49,4 +49,5 @@ async function compareAvatars(avatarUrl1, avatarUrl2, userId) {
 module.exports = {
     compareAvatars
 };
+
 

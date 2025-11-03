@@ -126,7 +126,7 @@ class EchanApiClient {
               }
             } catch (e) {
               if (line.trim() !== 'data: ') {
-                console.log('⚠️ JSON解析错误:', line.slice(0, 100), '...', e.message);
+                console.log('⚠️ JSON parse error:', line.slice(0, 100), '...', e.message);
               }
             }
           }
@@ -145,7 +145,7 @@ class EchanApiClient {
       });
 
       response.data.on('error', (err) => {
-        console.error('❌ 流式响应错误:', err);
+        console.error('❌ Streaming response error:', err);
         reject(err);
       });
     });
