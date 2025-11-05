@@ -19,6 +19,7 @@ const { processGroupMessage } = require('../application/usecases/spamHandler.js'
 const { prepareConversationQuery, injectNetworkDataIfKeyword } = require('../application/usecases/externalDataHandler.js');
 const { createPorts } = require('./portsFactory.js');
 const { checkImpersonation, handleImpersonation } = require('../application/usecases/antiImpersonationHandler.js');
+const { processNewMemberUsername } = require('../application/usecases/newMemberUsernameHandler.js');
 const { handlePriceCommand } = require('../application/usecases/priceHandler.js');
 const { renderPriceMessage } = require('./views/priceView.js');
 const { handleReportCommand } = require('../application/usecases/reportHandler.js');
@@ -45,6 +46,8 @@ const {
     handleListWhitelistCommand,
     handleRemoveWhitelistCommand
 } = require('../application/usecases/whitelistHandler.js');
+const { handleTimeCommand } = require('../application/usecases/timeHandler.js');
+const { renderTimeMessage } = require('./views/timeView.js');
 
 const LIMITED_MODE = false; 
 const FEATURE_DISABLED_MSGS = [
@@ -75,6 +78,7 @@ You can @echan or mention echan in your message to start a conversation with the
 /signup <address> - Register your eCash address
 /price - Get current eCash price data
 /explorer <address> [page] - Query address transactions
+/time [location/utc] - World time (e.g. /time or /time shanghai utc+8)
 /whitelisting <keyword> - Request to whitelist a keyword (bypasses spam detection)
 
 If you have any questions, please contact the admin.
@@ -109,9 +113,13 @@ function shouldHandleRequest(msg) {
         return false;
     }
     
+    // Check if message contains /translate command
+    const hasTranslateCommand = textContent.includes('/translate');
+    
     return (msg.reply_to_message && msg.reply_to_message.from.username === BOT_USERNAME) ||
            (textContent.includes(`@${BOT_USERNAME}`) || echanRegex.test(textContent)) ||
-           (msg.chat.type === "private");
+           (msg.chat.type === "private") ||
+           hasTranslateCommand;
 }
 
 function registerRoutes(bot) {
@@ -519,6 +527,38 @@ function registerRoutes(bot) {
         }
     });
 
+    // Listener 6.2: time conversion
+    bot.on('message', async (msg) => {
+        if (!msg.text) return;
+        const text = msg.text.trim();
+        const lower = text.toLowerCase();
+        const isTimeCommand = lower.startsWith('/time') || lower.startsWith(`/time@${BOT_USERNAME.toLowerCase()}`);
+        if (!isTimeCommand) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing time command ---');
+        try {
+            // Parse: /time [country1] [country2] ...
+            const countryNames = text.split(/\s+/).slice(1);
+            
+            const loadingMessage = await bot.sendMessage(msg.chat.id, '⏰ Getting time...');
+            const timeData = await handleTimeCommand(countryNames);
+            const timeMessage = renderTimeMessage(timeData);
+            
+            await bot.editMessageText(timeMessage, {
+                chat_id: msg.chat.id,
+                message_id: loadingMessage.message_id
+            });
+        } catch (error) {
+            console.error('Time command failed:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to get time.\n\nUsage:\n/time - Standard times only\n/time shanghai beijing - By location\n/time utc+8 utc-5 - By UTC offset');
+        }
+    });
+
     // Listener 7: main conversation
     bot.on('message', async (msg) => {
         if (!shouldHandleRequest(msg)) {
@@ -560,7 +600,9 @@ function registerRoutes(bot) {
             msg.text?.trim().toLowerCase() === "/ava" ||
             msg.text?.trim().toLowerCase() === `/ava@${BOT_USERNAME.toLowerCase()}` ||
             msg.text?.trim().toLowerCase().startsWith('/explorer') ||
-            msg.text?.trim().toLowerCase().startsWith(`/explorer@${BOT_USERNAME.toLowerCase()}`)) {
+            msg.text?.trim().toLowerCase().startsWith(`/explorer@${BOT_USERNAME.toLowerCase()}`) ||
+            msg.text?.trim().toLowerCase().startsWith('/time') ||
+            msg.text?.trim().toLowerCase().startsWith(`/time@${BOT_USERNAME.toLowerCase()}`)) {
             return;
         }
 
@@ -570,6 +612,26 @@ function registerRoutes(bot) {
         query = query
             .replace(`@${BOT_USERNAME}`, "")
             .trim();
+
+        // Replace /translate with "echan please translate to"
+        // If replying to a message, include the replied message content
+        if (query.includes('/translate')) {
+            // First, replace /translate with "echan please translate to"
+            query = query.replace(/\/translate/g, 'echan please translate(result only) to');
+            
+            // If replying to a message, add the replied content
+            if (msg.reply_to_message) {
+                const repliedText = msg.reply_to_message.text || msg.reply_to_message.caption || '';
+                if (repliedText) {
+                    // Extract the language specification (everything after "echan please translate to")
+                    const languageSpec = query.replace('echan please translate(result only) to', '').trim();
+                    // Reconstruct: if language specified, use "to [language]:"; otherwise just "translate:"
+                    query = languageSpec 
+                        ? `echan please translate(result only) to ${languageSpec}: "${repliedText}"`
+                        : `echan please translate(result only): "${repliedText}"`;
+                }
+            }
+        }
 
         // Add username to query
         const userInfo = msg.from.username ? `[${msg.from.username}]: ` : '';
@@ -589,8 +651,9 @@ function registerRoutes(bot) {
             query = prep.query;
         }
 
-        // Add previous context (group)
-        if (isGroupMessage(msg)) {
+        // Add previous context (group) - skip if using /translate
+        const isTranslateCommand = (msg.text || msg.caption || '').includes('/translate');
+        if (isGroupMessage(msg) && !isTranslateCommand) {
             const context = getFormattedContext(msg.chat.id, msg.message_id, BOT_USERNAME);
             if (context) {
                 query = `Previous context:\n${context}\n\nCurrent message:\n${query}`;
@@ -611,6 +674,46 @@ function registerRoutes(bot) {
         } else if (msg.text) {
             console.log('💭 Processing text conversation');
             handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_USERS, ports);
+        }
+    });
+
+    // Listener 6.5: check new member usernames
+    bot.on('message', async (msg) => {
+        if (LIMITED_MODE) {
+            return;
+        }
+        
+        const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
+        if (!isGroup) {
+            return;
+        }
+        
+        // Check for new_chat_members
+        if (msg.new_chat_members && msg.new_chat_members.length > 0) {
+            console.log('\n--- New members joined ---');
+            
+            // Check bot admin status first
+            try {
+                const botInfo = await bot.getMe();
+                const botMember = await bot.getChatMember(msg.chat.id, botInfo.id);
+                const isBotAdmin = ['creator', 'administrator'].includes(botMember.status);
+                
+                if (!isBotAdmin) {
+                    console.log('Bot is not admin, cannot check new members');
+                    return;
+                }
+                
+                // Check each new member
+                for (const newMember of msg.new_chat_members) {
+                    try {
+                        await processNewMemberUsername(newMember, msg.chat.id, msg.message_id, bot);
+                    } catch (error) {
+                        console.error('Failed to check new member username:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check bot admin status:', error);
+            }
         }
     });
 

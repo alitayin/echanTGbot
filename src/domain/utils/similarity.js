@@ -96,8 +96,69 @@ function calculateTextSimilarity(str1, str2) {
     return similarity * 100;
 }
 
+/**
+ * Calculate Levenshtein distance between two strings
+ * @param {string} str1 - First string
+ * @param {string} str2 - Second string
+ * @returns {number} Edit distance (number of edits needed)
+ */
+function levenshteinDistance(str1, str2) {
+    const len1 = str1.length;
+    const len2 = str2.length;
+    const matrix = [];
+
+    // Initialize matrix
+    for (let i = 0; i <= len1; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= len2; j++) {
+        matrix[0][j] = j;
+    }
+
+    // Fill matrix
+    for (let i = 1; i <= len1; i++) {
+        for (let j = 1; j <= len2; j++) {
+            if (str1[i - 1] === str2[j - 1]) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+
+    return matrix[len1][len2];
+}
+
+/**
+ * Calculate similarity percentage based on Levenshtein distance
+ * Good for single word/short string spelling correction
+ * @param {string} str1 - First string
+ * @param {string} str2 - Second string
+ * @returns {number} Similarity percentage (0-100)
+ */
+function calculateStringSimilarity(str1, str2) {
+    const s1 = str1.toLowerCase();
+    const s2 = str2.toLowerCase();
+    
+    if (s1 === s2) return 100;
+    
+    const distance = levenshteinDistance(s1, s2);
+    const maxLen = Math.max(s1.length, s2.length);
+    
+    if (maxLen === 0) return 100;
+    
+    const similarity = ((maxLen - distance) / maxLen) * 100;
+    return similarity;
+}
+
 module.exports = {
     calculateTextSimilarity,
+    calculateStringSimilarity,
+    levenshteinDistance,
     tokenize,
     createTermFrequencyVector,
     cosineSimilarity,

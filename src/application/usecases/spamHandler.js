@@ -3,7 +3,8 @@ const {
     ALITAYIN_USER_ID,
     SPAM_THRESHOLD,
     RELEVANT_KEYWORDS,
-    NOTIFICATION_GROUP_ID
+    NOTIFICATION_GROUP_ID,
+    USERNAME_LENGTH_THRESHOLD
 } = require('../../../config/config.js');
 
 const { fetchMessageAnalysis } = require('../../infrastructure/ai/messageAnalysis.js');
@@ -26,6 +27,15 @@ function buildCombinedAnalysisQuery(msg) {
         const text = (msg && msg.text) ? String(msg.text).trim() : '';
         const caption = (msg && msg.caption) ? String(msg.caption).trim() : '';
         const contentParts = [];
+
+        // Check if sender has long username and add it to content
+        if (msg && msg.from) {
+            const displayName = `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || msg.from.username || '';
+            if (displayName.length >= USERNAME_LENGTH_THRESHOLD) {
+                contentParts.push(`[Sender Name]: ${displayName}`);
+                console.log(`Added long username to spam check: "${displayName}" (length: ${displayName.length})`);
+            }
+        }
 
         if (msg && msg.quote && msg.quote.text) {
             const quoteText = String(msg.quote.text).trim();
