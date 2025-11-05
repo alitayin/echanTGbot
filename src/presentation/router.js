@@ -665,8 +665,9 @@ function registerRoutes(bot) {
         const isEchanMention = /\bechan\b/i.test(textContent);
 
         if (isEchanMention || isDirectMention) {
-            console.log('🔍 Checking if message needs response');
-            const prep = await prepareConversationQuery(ports, query, msg.from.id);
+
+            // skipNeedsResponseCheck = true for direct @ mentions
+            const prep = await prepareConversationQuery(ports, query, msg.from.id, isDirectMention);
             if (!prep.shouldRespond) {
                 return;
             }

@@ -52,7 +52,7 @@ async function processExternalData(query, analysis, userId, ports) {
     return query;
 }
 
-async function prepareConversationQuery(ports, query, userId) {
+async function prepareConversationQuery(ports, query, userId, skipNeedsResponseCheck = false) {
     const getAnalysis = async () => {
         const analysis = await ports.analysis.analyzeMessage(query, userId);
         if (!analysis || analysis.needs_response === undefined) {
@@ -63,12 +63,17 @@ async function prepareConversationQuery(ports, query, userId) {
 
     try {
         const analysisResult = await withTimeout(getAnalysis, 5000, 'Timeout');
-        if (!analysisResult.needs_response) {
+        
+        // Only check needs_response if not skipped (for direct @ mentions)
+        if (!skipNeedsResponseCheck && !analysisResult.needs_response) {
+            console.log('✋ needs_response is false, skipping response');
             return { shouldRespond: false, query };
         }
+        
         const enriched = await processExternalData(query, analysisResult, userId, ports);
         return { shouldRespond: true, query: enriched };
     } catch (error) {
+        console.error('⚠️ Analysis error, defaulting to respond:', error.message);
         return { shouldRespond: true, query };
     }
 }
