@@ -541,22 +541,44 @@ function registerRoutes(bot) {
             return;
         }
         console.log('\n--- Processing time command ---');
-        try {
-            // Parse: /time [country1] [country2] ...
-            const countryNames = text.split(/\s+/).slice(1);
-            
-            const loadingMessage = await bot.sendMessage(msg.chat.id, '⏰ Getting time...');
-            const timeData = await handleTimeCommand(countryNames);
-            const timeMessage = renderTimeMessage(timeData);
-            
-            await bot.editMessageText(timeMessage, {
-                chat_id: msg.chat.id,
-                message_id: loadingMessage.message_id
-            });
-        } catch (error) {
-            console.error('Time command failed:', error);
-            await bot.sendMessage(msg.chat.id, '❌ Failed to get time.\n\nUsage:\n/time - Standard times only\n/time shanghai beijing - By location\n/time utc+8 utc-5 - By UTC offset');
+        
+        const countryNames = text.split(/\s+/).slice(1);
+        const loadingMessage = await bot.sendMessage(msg.chat.id, '⏰ Getting time...');
+        
+        const executeTimeCommand = async () => {
+            return Promise.race([
+                handleTimeCommand(countryNames),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout')), 5000)
+                )
+            ]);
+        };
+        
+        let lastError = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const timeData = await executeTimeCommand();
+                const timeMessage = renderTimeMessage(timeData);
+                
+                await bot.editMessageText(timeMessage, {
+                    chat_id: msg.chat.id,
+                    message_id: loadingMessage.message_id
+                });
+                return;
+            } catch (error) {
+                lastError = error;
+                console.error(`Time command attempt ${attempt} failed:`, error.message);
+                if (attempt < 2) {
+                    console.log(`Retrying... (attempt ${attempt + 1}/2)`);
+                }
+            }
         }
+        
+        console.error('Time command failed after 2 attempts:', lastError);
+        await bot.editMessageText('❌ Try again plesea', {
+            chat_id: msg.chat.id,
+            message_id: loadingMessage.message_id
+        });
     });
 
     // Listener 7: main conversation
