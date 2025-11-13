@@ -1,10 +1,10 @@
-const { KOUSH_USER_ID, ALITAYIN_USER_ID } = require('../../../config/config.js');
+const { NOTIFICATION_GROUP_ID } = require('../../../config/config.js');
 const {
   getBotIsAdmin,
-  forwardOrCopyToAdmin,
+  forwardOrCopyToLogGroup,
   deleteMessageSafe,
   sendChatNotification,
-  sendAdminReports,
+  sendLogGroupReport,
 } = require('../../infrastructure/telegram/reportingActions.js');
 
 async function handleReportCommand(msg, bot) {
@@ -22,7 +22,7 @@ async function handleReportCommand(msg, bot) {
   const original = msg.reply_to_message;
   const groupName = msg.chat.title || 'Unknown Group';
 
-  await forwardOrCopyToAdmin(bot, ALITAYIN_USER_ID, original, msg.chat.id, groupName);
+  await forwardOrCopyToLogGroup(bot, NOTIFICATION_GROUP_ID, original, msg.chat.id, groupName);
 
   await deleteMessageSafe(bot, msg.chat.id, original.message_id);
 
@@ -32,7 +32,7 @@ async function handleReportCommand(msg, bot) {
 
   const targetUsername = original.from?.username || 'unknown';
   const reportInfo = `Reported message from @${targetUsername} deleted by me, report by @${reporterUsername}`;
-  await sendAdminReports(bot, reportInfo, [KOUSH_USER_ID, ALITAYIN_USER_ID]);
+  await sendLogGroupReport(bot, NOTIFICATION_GROUP_ID, reportInfo);
 }
 
 module.exports = {

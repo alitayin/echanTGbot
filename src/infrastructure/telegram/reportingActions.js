@@ -13,9 +13,9 @@ async function getBotIsAdmin(bot, chatId) {
   }
 }
 
-async function forwardOrCopyToAdmin(bot, adminId, originalMsg, sourceChatId, groupName) {
+async function forwardOrCopyToLogGroup(bot, logGroupId, originalMsg, sourceChatId, groupName) {
   try {
-    await bot.forwardMessage(adminId, sourceChatId, originalMsg.message_id);
+    await bot.forwardMessage(logGroupId, sourceChatId, originalMsg.message_id);
     return true;
   } catch (e) {
     const desc = e?.response?.body?.description || e?.message || '';
@@ -25,16 +25,16 @@ async function forwardOrCopyToAdmin(bot, adminId, originalMsg, sourceChatId, gro
     if (originalMsg.photo && originalMsg.photo.length > 0) {
       const largestPhoto = originalMsg.photo[originalMsg.photo.length - 1];
       const cap = originalMsg.caption ? `${header}\n\n${originalMsg.caption}` : header;
-      await bot.sendPhoto(adminId, largestPhoto.file_id, { caption: cap });
+      await bot.sendPhoto(logGroupId, largestPhoto.file_id, { caption: cap });
       return true;
     } else if (originalMsg.text) {
-      await bot.sendMessage(adminId, `${header}\n\n${originalMsg.text}`);
+      await bot.sendMessage(logGroupId, `${header}\n\n${originalMsg.text}`);
       return true;
     } else if (originalMsg.caption && originalMsg.document) {
-      await bot.sendDocument(adminId, originalMsg.document.file_id, { caption: `${header}\n\n${originalMsg.caption}` });
+      await bot.sendDocument(logGroupId, originalMsg.document.file_id, { caption: `${header}\n\n${originalMsg.caption}` });
       return true;
     } else {
-      await bot.sendMessage(adminId, `${header}\n\n[Unsupported content type; forward failed: ${desc}]`);
+      await bot.sendMessage(logGroupId, `${header}\n\n[Unsupported content type; forward failed: ${desc}]`);
       return false;
     }
   }
@@ -57,23 +57,21 @@ async function sendChatNotification(bot, chatId, notificationMessage) {
   }
 }
 
-async function sendAdminReports(bot, reportText, adminIds = []) {
-  for (const adminId of adminIds) {
-    if (!adminId) continue;
-    try {
-      await bot.sendMessage(adminId, reportText);
-    } catch (_) {
-      // ignore individual admin failures
-    }
+async function sendLogGroupReport(bot, logGroupId, reportText) {
+  if (!logGroupId) return;
+  try {
+    await bot.sendMessage(logGroupId, reportText);
+  } catch (error) {
+    console.error('Failed to send report to log group:', error);
   }
 }
 
 module.exports = {
   getBotIsAdmin,
-  forwardOrCopyToAdmin,
+  forwardOrCopyToLogGroup,
   deleteMessageSafe,
   sendChatNotification,
-  sendAdminReports,
+  sendLogGroupReport,
 };
 
 
