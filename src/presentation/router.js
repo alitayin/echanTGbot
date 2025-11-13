@@ -48,6 +48,15 @@ const {
 } = require('../application/usecases/whitelistHandler.js');
 const { handleTimeCommand } = require('../application/usecases/timeHandler.js');
 const { renderTimeMessage } = require('./views/timeView.js');
+const { 
+    handleMessageCommand, 
+    handleShowMessageCommand, 
+    handleDeleteMessageCommand,
+    handleMessageCallback,
+    handleStoredMessageCommand,
+    handleStopMessageCommand,
+    handleListScheduledCommand
+} = require('../application/usecases/messageHandler.js');
 
 const LIMITED_MODE = false; 
 const FEATURE_DISABLED_MSGS = [
@@ -80,6 +89,18 @@ You can @echan or mention echan in your message to start a conversation with the
 /explorer <address> [page] - Query address transactions
 /time [location/utc] - World time (e.g. /time or /time shanghai utc+8)
 /whitelisting <keyword> - Request to whitelist a keyword (bypasses spam detection)
+
+### Message Storage:
+/message <commandname> - Save a message (reply to the message you want to save)
+/showmessage - Show all saved messages (private chat only)
+/deletemessage <commandname> - Delete a saved message
+/<commandname> - Use a saved message (send the stored message content)
+
+### Repeating Messages:
+/<commandname> <time> - Start repeating a saved message (e.g. /koush 0.1h)
+/message <commandname> <time> - Save & start repeating (e.g. /message reminder 6h)
+/listscheduled - Show all repeating scheduled messages (private chat only)
+/stopmessage <commandname> - Stop a repeating message
 
 If you have any questions, please contact the admin.
 `;
@@ -433,6 +454,96 @@ function registerRoutes(bot) {
         }
     });
 
+    // Listener 3.13: message (all users)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/message')) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing message save command ---');
+        try {
+            await handleMessageCommand(msg, bot);
+        } catch (error) {
+            console.error('Failed to save message:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to save message. Please try again.');
+        }
+    });
+
+    // Listener 3.14: showmessage (all users, private only)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/showmessage')) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing show message command ---');
+        try {
+            await handleShowMessageCommand(msg, bot);
+        } catch (error) {
+            console.error('Failed to show messages:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to retrieve messages. Please try again.');
+        }
+    });
+
+    // Listener 3.15: deletemessage (all users)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/deletemessage')) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing delete message command ---');
+        try {
+            await handleDeleteMessageCommand(msg, bot);
+        } catch (error) {
+            console.error('Failed to delete message:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to delete message. Please try again.');
+        }
+    });
+
+    // Listener 3.16: stopmessage (all users)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/stopmessage')) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing stop message command ---');
+        try {
+            await handleStopMessageCommand(msg, bot);
+        } catch (error) {
+            console.error('Failed to stop message:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to stop message. Please try again.');
+        }
+    });
+
+    // Listener 3.17: listscheduled (all users, private only)
+    bot.on('message', async (msg) => {
+        if (!msg.text?.startsWith('/listscheduled')) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await bot.sendMessage(msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing list scheduled command ---');
+        try {
+            await handleListScheduledCommand(msg, bot);
+        } catch (error) {
+            console.error('Failed to list scheduled messages:', error);
+            await bot.sendMessage(msg.chat.id, '❌ Failed to retrieve scheduled messages. Please try again.');
+        }
+    });
+
     // Listener 4: price
     bot.on('message', async (msg) => {
         if (!msg.text) return;
@@ -581,6 +692,64 @@ function registerRoutes(bot) {
         });
     });
 
+    // Listener 6.6: stored message commands (custom /commandname [time])
+    bot.on('message', async (msg) => {
+        if (!msg.text) return;
+        
+        // Only handle commands starting with /
+        if (!msg.text.startsWith('/')) {
+            return;
+        }
+
+        // Extract command name and optional time parameter
+        const text = msg.text.trim();
+        const allParts = text.split(/\s+/);
+        const commandPart = allParts[0]; // e.g., "/koush"
+        const timeParam = allParts[1] ? allParts[1].trim() : null; // e.g., "0.1h"
+        
+        let commandName = commandPart.substring(1); // Remove the leading /
+        
+        // Remove @botname if present
+        if (commandName.includes('@')) {
+            commandName = commandName.split('@')[0];
+        }
+
+        // Skip if it's a known command
+        const knownCommands = [
+            'report', 'addlicense', 'removelicense', 'listlicenses',
+            'signup', 'getaddress', 'listaddresses', 'send',
+            'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
+            'removewhitelist', 'message', 'showmessage', 'deletemessage',
+            'stopmessage', 'listscheduled',
+            'start', 'help', 'price', 'ava', 'explorer', 'time', 'translate'
+        ];
+        
+        if (knownCommands.includes(commandName.toLowerCase())) {
+            return;
+        }
+
+        // Skip if empty command name
+        if (!commandName) {
+            return;
+        }
+
+        if (LIMITED_MODE) {
+            return;
+        }
+
+        console.log(`\n--- Checking for stored message command: ${commandName} ${timeParam ? `with time ${timeParam}` : ''} ---`);
+        
+        try {
+            const handled = await handleStoredMessageCommand(msg, bot, commandName, timeParam);
+            if (!handled) {
+                // Not a stored message, ignore silently
+                console.log(`No stored message found for: ${commandName}`);
+            }
+        } catch (error) {
+            console.error('Failed to handle stored message command:', error);
+        }
+    });
+
     // Listener 7: main conversation
     bot.on('message', async (msg) => {
         if (!shouldHandleRequest(msg)) {
@@ -615,6 +784,11 @@ function registerRoutes(bot) {
             msg.text?.startsWith('/whitelisting') ||
             msg.text?.startsWith('/listwhitelist') ||
             msg.text?.startsWith('/removewhitelist') ||
+            msg.text?.startsWith('/message') ||
+            msg.text?.startsWith('/showmessage') ||
+            msg.text?.startsWith('/deletemessage') ||
+            msg.text?.startsWith('/stopmessage') ||
+            msg.text?.startsWith('/listscheduled') ||
             msg.text?.trim().toLowerCase() === "/start" ||
             msg.text?.trim().toLowerCase() === "/help" ||
             msg.text?.trim().toLowerCase() === "/price" ||
@@ -798,12 +972,15 @@ function registerRoutes(bot) {
         addBotMessageToGroup(chatId, text, BOT_USERNAME);
     });
 
-    // Listener 9: callback query handler (for whitelist approval/rejection)
+    // Listener 9: callback query handler (for whitelist approval/rejection and message operations)
     bot.on('callback_query', async (query) => {
         try {
             if (query.data.startsWith('whitelist_')) {
                 console.log('\n--- Processing whitelist callback ---');
                 await handleWhitelistCallback(query, bot);
+            } else if (query.data.startsWith('msg_')) {
+                console.log('\n--- Processing message callback ---');
+                await handleMessageCallback(query, bot);
             }
         } catch (error) {
             console.error('Failed to handle callback query:', error);

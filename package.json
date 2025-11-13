@@ -1,6 +1,6 @@
 {
   "name": "xecbot",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "description": "Layered Telegram bot for eCash (XEC) with modular architecture",
   "main": "src/presentation/index.js",
   "scripts": {
