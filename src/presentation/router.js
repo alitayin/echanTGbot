@@ -289,15 +289,60 @@ function getHelpMenu(callbackData, isAdmin) {
     return null;
 }
 
+// Helper: check if the user is replying to a "standard command reply" from the bot
+function isReplyToStandardBotReply(msg) {
+    if (!msg.reply_to_message || !msg.reply_to_message.from) {
+        return false;
+    }
+
+    if (msg.reply_to_message.from.username !== BOT_USERNAME) {
+        return false;
+    }
+
+    const repliedText = msg.reply_to_message.text || msg.reply_to_message.caption || '';
+    if (!repliedText) {
+        return false;
+    }
+
+    if (repliedText.startsWith('🔄 Translation:')) {
+        return true;
+    }
+
+    if (repliedText.startsWith('✅ Mission created!') ||
+        repliedText.startsWith('📋 All Missions') ||
+        repliedText.startsWith('📋 No missions have been created yet.') ||
+        repliedText.startsWith('✅ Mission ')) {
+        return true;
+    }
+
+    if (repliedText.startsWith('📈 eCash (XEC) Price Update') ||
+        repliedText.startsWith('🗻 eCash Avalanche Network Update') ||
+        repliedText.startsWith('🌍 World Time') ||
+        repliedText.startsWith('✨ Address: ')) {
+        return true;
+    }
+
+    if (repliedText.startsWith('⏰ Repeating message scheduled:') ||
+        repliedText.startsWith('📚 Stored Messages (') ||
+        repliedText.startsWith('📭 No saved messages yet.') ||
+        repliedText.startsWith('📭 No scheduled repeating messages.') ||
+        repliedText.startsWith('⏰ Scheduled Repeating Messages (') ||
+        repliedText.startsWith('✅ Stopped repeating message:') ||
+        repliedText.startsWith('✅ Message saved with command:')) {
+        return true;
+    }
+
+    return false;
+}
+
 // Helper: should handle request
 function shouldHandleRequest(msg) {
     let textContent = msg.text || msg.caption || '';
     const echanRegex = /\bechan\b/i;
-    
-    // Check if replying to a translation message - if so, don't handle
-    if (msg.reply_to_message && 
-        msg.reply_to_message.from.username === BOT_USERNAME &&
-        msg.reply_to_message.text?.startsWith('🔄 Translation:')) {
+
+    // If the user is replying to a standard bot reply (command/system output),
+    // do NOT route this into the main conversation / external API.
+    if (isReplyToStandardBotReply(msg)) {
         return false;
     }
     

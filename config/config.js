@@ -17,11 +17,12 @@ module.exports = {
   ALITAYIN_USER_ID: process.env.ALITAYIN_USER_ID,
   NOTIFICATION_GROUP_ID: process.env.NOTIFICATION_GROUP_ID,
   // I keep this in hardcode, because i don't think it is neccesary to be putted into env.
-  ECASH_ARMY_GROUP_ID: '-1003023703571',
+  ECASH_ARMY_GROUP_ID: '-1001533588498',
 
   // Spam detection configuration
   SPAM_THRESHOLD: parseInt(process.env.SPAM_THRESHOLD),
   USERNAME_LENGTH_THRESHOLD: parseInt(process.env.USERNAME_LENGTH_THRESHOLD || '30'),
+  NORMAL_STREAK_THRESHOLD: parseInt(process.env.NORMAL_STREAK_THRESHOLD || '5'),
   SECONDARY_SPAM_API_KEY: process.env.SECONDARY_SPAM_API_KEY,
   ADDITIONAL_API_KEY_BACKUP: process.env.ADDITIONAL_API_KEY_BACKUP,
   SECONDARY_SPAM_API_KEY_BACKUP: process.env.SECONDARY_SPAM_API_KEY_BACKUP,

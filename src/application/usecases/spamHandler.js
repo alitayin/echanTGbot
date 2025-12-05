@@ -14,6 +14,11 @@ const { updateSpamRecord } = require('../../infrastructure/storage/spamUserStore
 const { isSimilarToSpam, addSpamMessage } = require('../../infrastructure/storage/spamMessageCache.js');
 const { kickUser, unbanUser, deleteMessage, forwardMessage, getIsAdmin } = require('../../infrastructure/telegram/adminActions.js');
 const { containsWhitelistKeyword } = require('../../infrastructure/storage/whitelistKeywordStore.js');
+const {
+    isUserTrustedInGroup,
+    recordNormalMessageInGroup,
+    resetNormalMessageStreakInGroup,
+} = require('../../infrastructure/storage/normalMessageTracker.js');
 
 const {
     isSpamMessage,
@@ -150,6 +155,11 @@ async function processGroupMessage(msg, bot, ports) {
         return;
     }
 
+    // Ignore bot messages; only track human users for trust / spam detection
+    if (!msg.from || msg.from.is_bot) {
+        return;
+    }
+
     const query = buildCombinedAnalysisQuery(msg);
     
     console.log('Message structure (selected fields):', JSON.stringify({
@@ -182,13 +192,6 @@ async function processGroupMessage(msg, bot, ports) {
     
     if (!query.trim()) {
         console.log('Skip empty message');
-        return;
-    }
-
-    // Check if message contains whitelisted keyword
-    const whitelistedKeyword = await containsWhitelistKeyword(query);
-    if (whitelistedKeyword) {
-        console.log(`Message contains whitelisted keyword "${whitelistedKeyword}", skipping spam detection`);
         return;
     }
 
@@ -237,6 +240,22 @@ async function processGroupMessage(msg, bot, ports) {
         }
     }
 
+    // If user has already built enough normal-message history in this group,
+    // skip further spam detection for better UX.
+    if (isUserTrustedInGroup(msg.chat.id, msg.from.id)) {
+        console.log(
+            `User ${msg.from.id} in chat ${msg.chat.id} is trusted (>= normal streak threshold), skipping spam detection`
+        );
+        return;
+    }
+
+    // Check if message contains whitelisted keyword
+    const whitelistedKeyword = await containsWhitelistKeyword(query);
+    if (whitelistedKeyword) {
+        console.log(`Message contains whitelisted keyword "${whitelistedKeyword}", skipping spam detection`);
+        return;
+    }
+
     // Check similarity with cached spam messages before calling API
     if (isSimilarToSpam(query, 95)) {
         console.log('Message is similar to cached spam (>=95%), deleting without API call');
@@ -252,10 +271,20 @@ async function processGroupMessage(msg, bot, ports) {
 
     if (isBotAdmin) {
         const wasSpam = await handleSpamMessage(msg, bot, answer, query);
-        if (!wasSpam && answer.is_english === false) {
+
+        if (wasSpam) {
+            // If spam is detected, reset the user's normal-message streak
+            resetNormalMessageStreakInGroup(msg.chat.id, msg.from.id);
+            return;
+        }
+
+        // Non-spam message from a human user in group: record as normal.
+        recordNormalMessageInGroup(msg.chat.id, msg.from.id);
+
+        if (answer.is_english === false) {
             console.log('Non-English detected, translating');
             await handleTranslation(msg, bot);
-        } else if (!wasSpam) {
+        } else {
             console.log('Normal message');
         }
     }

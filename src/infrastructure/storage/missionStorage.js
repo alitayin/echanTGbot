@@ -246,18 +246,14 @@ async function getUserStats(userId) {
 async function getAllUserStats() {
     try {
         const allStats = [];
-        const stream = db.createReadStream({
-            gte: 'userstats:',
-            lte: 'userstats:\xff'
-        });
-
-        for await (const data of stream) {
-            allStats.push(data.value);
+        for await (const [key, value] of db.iterator()) {
+            if (key.startsWith('userstats:')) {
+                allStats.push(value);
+            }
         }
-
         return allStats;
     } catch (error) {
-        console.error('Failed to get all user stats:', error);
+        console.error('Failed to get all user stats:', error?.message || error);
         return [];
     }
 }
