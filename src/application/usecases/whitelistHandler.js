@@ -62,9 +62,20 @@ async function handleWhitelistingCommand(msg, bot) {
         }
     };
     
-    await bot.sendMessage(NOTIFICATION_GROUP_ID, requestMessage, approvalButtons);
-    
-    console.log(`Whitelist request sent: "${keyword}" by ${username}`);
+    try {
+        await bot.sendMessage(NOTIFICATION_GROUP_ID, requestMessage, approvalButtons);
+        console.log(`Whitelist request sent: "${keyword}" by ${username}`);
+    } catch (error) {
+        // Gracefully report configuration/delivery issues to the requester
+        const tgDescription = error?.response?.body?.description || error.message || 'Unknown error';
+        console.error('Failed to forward whitelist request to notification group:', tgDescription);
+        await bot.sendMessage(
+            msg.chat.id,
+            `❌ Failed to submit whitelist request for review.\nReason: ${tgDescription}\n\n` +
+            'Please contact an admin to verify NOTIFICATION_GROUP_ID and that the bot is in the notification group.'
+        );
+        return;
+    }
 }
 
 /**
