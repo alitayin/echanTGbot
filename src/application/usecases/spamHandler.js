@@ -20,6 +20,9 @@ const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
 const { HIGH_FREQ_WORDS } = require('../../infrastructure/ai/englishHighFreq.js');
 // Skip-list for high-frequency collisions (e.g., Indonesian "dan")
 const ENGLISH_COVERAGE_SKIP = new Set(['dan']);
+// Minimum English high-frequency coverage to treat Latin text as English
+const ENGLISH_MIN_COVERAGE = 0.6; //
+const ENGLISH_MIN_COVERAGE_STEM = 0.80; 
 const {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
@@ -32,33 +35,71 @@ const {
     decideDisciplinaryAction,
 } = require('../../domain/policies/spamPolicy.js');
 
+function simpleStem(word) {
+    if (word.length <= 3) return word;
+    if (word.endsWith('ing') && word.length > 4) return word.slice(0, -3);
+    if (word.endsWith('ed') && word.length > 3) return word.slice(0, -2);
+    if (word.endsWith('es') && word.length > 3) return word.slice(0, -2);
+    if (word.endsWith('s') && word.length > 3) return word.slice(0, -1);
+    return word;
+}
+
 function detectNonEnglish(msg) {
+    const t0 = Date.now();
     const content = (msg?.text || msg?.caption || '').trim();
     if (!content || content.length < 5) {
-        return { isNonEnglish: false, reason: 'too-short', ratio: 0, coverage: null, length: content.length };
+        return { isNonEnglish: false, reason: 'too-short', ratio: 0, coverage: null, coverageStem: null, length: content.length, durationMs: Date.now() - t0 };
     }
     const nonLatinRegex = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0590-\u05ff\u0900-\u0d7f]/;
     if (nonLatinRegex.test(content)) {
-        return { isNonEnglish: true, reason: 'non-latin-script', ratio: 1, coverage: null, length: content.length };
+        return { isNonEnglish: true, reason: 'non-latin-script', ratio: 1, coverage: null, coverageStem: null, length: content.length, durationMs: Date.now() - t0 };
     }
     const nonAscii = (content.match(/[^\x00-\x7F]/g) || []).length;
     const ratio = nonAscii / content.length;
     if (ratio >= 0.15) {
-        return { isNonEnglish: true, reason: `non-ascii-ratio>=0.15 (${ratio.toFixed(3)})`, ratio, coverage: null, length: content.length };
+        return { isNonEnglish: true, reason: `non-ascii-ratio>=0.15 (${ratio.toFixed(3)})`, ratio, coverage: null, coverageStem: null, length: content.length, durationMs: Date.now() - t0 };
     }
     const words = content.toLowerCase().match(/[a-z']+/g) || [];
     if (!words.length) {
-        return { isNonEnglish: false, reason: 'no-english-words', ratio, coverage: 0, length: content.length };
+        return { isNonEnglish: false, reason: 'no-english-words', ratio, coverage: 0, coverageStem: 0, length: content.length, durationMs: Date.now() - t0 };
     }
-    let hits = 0;
+    let hitsRaw = 0;
     for (const w of words) {
-        if (!ENGLISH_COVERAGE_SKIP.has(w) && HIGH_FREQ_WORDS.has(w)) hits++;
+        if (!ENGLISH_COVERAGE_SKIP.has(w) && HIGH_FREQ_WORDS.has(w)) hitsRaw++;
     }
-    const coverage = hits / words.length;
-    if (coverage < 0.05) {
-        return { isNonEnglish: true, reason: `low-english-coverage<0.05 (${coverage.toFixed(3)})`, ratio, coverage, length: content.length };
+    // Stem-based hits (avoid double-counting raw hits)
+    let hitsStem = hitsRaw;
+    if (hitsRaw < words.length) {
+        for (const w of words) {
+            if (ENGLISH_COVERAGE_SKIP.has(w) || HIGH_FREQ_WORDS.has(w)) continue;
+            const stem = simpleStem(w);
+            if (!ENGLISH_COVERAGE_SKIP.has(stem) && HIGH_FREQ_WORDS.has(stem)) {
+                hitsStem++;
+            }
+        }
     }
-    return { isNonEnglish: false, reason: 'english-coverage-ok', ratio, coverage, length: content.length };
+    const coverageRaw = hitsRaw / words.length;
+    const coverageStem = hitsStem / words.length;
+    if (coverageRaw >= ENGLISH_MIN_COVERAGE || coverageStem >= ENGLISH_MIN_COVERAGE_STEM) {
+        return {
+            isNonEnglish: false,
+            reason: 'english-coverage-ok',
+            ratio,
+            coverage: coverageRaw,
+            coverageStem,
+            length: content.length,
+            durationMs: Date.now() - t0
+        };
+    }
+    return {
+        isNonEnglish: true,
+        reason: `low-english-coverage<${ENGLISH_MIN_COVERAGE.toFixed(2)} raw (${coverageRaw.toFixed(3)}), stem<${ENGLISH_MIN_COVERAGE_STEM.toFixed(2)} (${coverageStem.toFixed(3)})`,
+        ratio,
+        coverage: coverageRaw,
+        coverageStem,
+        length: content.length,
+        durationMs: Date.now() - t0
+    };
 }
 
 function buildCombinedAnalysisQuery(msg) {
@@ -331,8 +372,22 @@ async function processGroupMessage(msg, bot, ports) {
         // Even if we skip spam checks for trusted users, keep auto-translation working for non-English text
         const detection = detectNonEnglish(msg);
         if (detection.isNonEnglish) {
-            console.log(`Non-English detected (trusted path): reason=${detection.reason}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, len=${detection.length}`);
+            console.log(`Non-English detected (trusted path): reason=${detection.reason}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, coverageStem=${detection.coverageStem != null ? detection.coverageStem.toFixed(3) : 'n/a'}, len=${detection.length}, detectMs=${detection.durationMs}`);
             await handleTranslation(msg, bot);
+        }
+        // For short ASCII-looking messages from trusted users, still call API to confirm English
+        const userText = (msg.text || msg.caption || '').trim();
+        const asciiSafe = detection?.ratio != null ? detection.ratio < 0.15 : true;
+        if (userText && userText.length < 120 && asciiSafe) {
+            try {
+                const langAnalysis = await fetchMessageAnalysis(query, msg.from.id);
+                if (langAnalysis && langAnalysis.is_english === false) {
+                    console.log('API marked trusted short message as non-English, translating');
+                    await handleTranslation(msg, bot);
+                }
+            } catch (err) {
+                console.error('Trusted path language check failed:', err?.message || err);
+            }
         }
         return;
     }
@@ -387,12 +442,13 @@ async function processGroupMessage(msg, bot, ports) {
         // Non-spam message from a human user in group: record as normal.
         recordNormalMessageInGroup(msg.chat.id, msg.from.id);
 
-        const detection = detectNonEnglish(msg);
-        if (detection.isNonEnglish) {
-            console.log(`Non-English detected (local heuristic), translating. reason=${detection.reason}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, len=${detection.length}`);
+        // 非 trusted 用户仅使用 API 的 is_english 标记，不再使用本地启发式
+        const apiIsEnglish = answer?.is_english;
+        if (apiIsEnglish === false) {
+            console.log('API marked message as non-English (non-trusted path), translating');
             await handleTranslation(msg, bot);
         } else {
-            console.log('Normal message');
+            console.log(`API language flag (non-trusted path): is_english=${apiIsEnglish}`);
         }
     }
 }
