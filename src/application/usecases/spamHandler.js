@@ -17,6 +17,9 @@ const { kickUser, unbanUser, deleteMessage, forwardMessage, getIsAdmin } = requi
 const { getImageUrls, hasImageMedia, getImageFileId } = require('../../infrastructure/telegram/mediaHelper.js');
 const { containsWhitelistKeyword } = require('../../infrastructure/storage/whitelistKeywordStore.js');
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
+const { HIGH_FREQ_WORDS } = require('../../infrastructure/ai/englishHighFreq.js');
+// Skip-list for high-frequency collisions (e.g., Indonesian "dan")
+const ENGLISH_COVERAGE_SKIP = new Set(['dan']);
 const {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
@@ -28,6 +31,35 @@ const {
     decideSecondarySpamCheck,
     decideDisciplinaryAction,
 } = require('../../domain/policies/spamPolicy.js');
+
+function detectNonEnglish(msg) {
+    const content = (msg?.text || msg?.caption || '').trim();
+    if (!content || content.length < 5) {
+        return { isNonEnglish: false, reason: 'too-short', ratio: 0, coverage: null, length: content.length };
+    }
+    const nonLatinRegex = /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u0400-\u052f\u0600-\u06ff\u0590-\u05ff\u0900-\u0d7f]/;
+    if (nonLatinRegex.test(content)) {
+        return { isNonEnglish: true, reason: 'non-latin-script', ratio: 1, coverage: null, length: content.length };
+    }
+    const nonAscii = (content.match(/[^\x00-\x7F]/g) || []).length;
+    const ratio = nonAscii / content.length;
+    if (ratio >= 0.15) {
+        return { isNonEnglish: true, reason: `non-ascii-ratio>=0.15 (${ratio.toFixed(3)})`, ratio, coverage: null, length: content.length };
+    }
+    const words = content.toLowerCase().match(/[a-z']+/g) || [];
+    if (!words.length) {
+        return { isNonEnglish: false, reason: 'no-english-words', ratio, coverage: 0, length: content.length };
+    }
+    let hits = 0;
+    for (const w of words) {
+        if (!ENGLISH_COVERAGE_SKIP.has(w) && HIGH_FREQ_WORDS.has(w)) hits++;
+    }
+    const coverage = hits / words.length;
+    if (coverage < 0.05) {
+        return { isNonEnglish: true, reason: `low-english-coverage<0.05 (${coverage.toFixed(3)})`, ratio, coverage, length: content.length };
+    }
+    return { isNonEnglish: false, reason: 'english-coverage-ok', ratio, coverage, length: content.length };
+}
 
 function buildCombinedAnalysisQuery(msg) {
     try {
@@ -296,6 +328,12 @@ async function processGroupMessage(msg, bot, ports) {
         console.log(
             `User ${msg.from.id} in chat ${msg.chat.id} is trusted (>= normal streak threshold), skipping spam detection`
         );
+        // Even if we skip spam checks for trusted users, keep auto-translation working for non-English text
+        const detection = detectNonEnglish(msg);
+        if (detection.isNonEnglish) {
+            console.log(`Non-English detected (trusted path): reason=${detection.reason}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, len=${detection.length}`);
+            await handleTranslation(msg, bot);
+        }
         return;
     }
 
@@ -349,8 +387,9 @@ async function processGroupMessage(msg, bot, ports) {
         // Non-spam message from a human user in group: record as normal.
         recordNormalMessageInGroup(msg.chat.id, msg.from.id);
 
-        if (answer.is_english === false) {
-            console.log('Non-English detected, translating');
+        const detection = detectNonEnglish(msg);
+        if (detection.isNonEnglish) {
+            console.log(`Non-English detected (local heuristic), translating. reason=${detection.reason}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, len=${detection.length}`);
             await handleTranslation(msg, bot);
         } else {
             console.log('Normal message');
