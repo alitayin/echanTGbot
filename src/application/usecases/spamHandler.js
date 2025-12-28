@@ -378,7 +378,7 @@ async function processGroupMessage(msg, bot, ports) {
         // For short ASCII-looking messages from trusted users, still call API to confirm English
         const userText = (msg.text || msg.caption || '').trim();
         const asciiSafe = detection?.ratio != null ? detection.ratio < 0.15 : true;
-        if (userText && userText.length < 120 && asciiSafe) {
+        if (userText && userText.length < 50 && asciiSafe) {
             try {
                 const langAnalysis = await fetchMessageAnalysis(query, msg.from.id);
                 if (langAnalysis && langAnalysis.is_english === false) {
