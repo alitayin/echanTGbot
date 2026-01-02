@@ -35,6 +35,12 @@ MNEMONIC="your twelve word mnemonic phrase"
 # Admin Users (comma-separated usernames)
 ALLOWED_USERS=username1,username2
 
+
+AXIOM_TOKEN=your_axiom_token
+AXIOM_DATASET=       # your dataset name
+AXIOM_ORG_ID=        # optional, if your org requires it
+LOG_LEVEL=info       # optional, defaults to info
+
 # Other configurations...
 ```
 
