@@ -1115,7 +1115,7 @@ function registerRoutes(bot) {
             return;
         }
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
-        if (!isGroup || !msg.from || !msg.from.username || msg.from.is_bot) {
+        if (!isGroup || !msg.from || msg.from.is_bot) {
             return;
         }
 
