@@ -5,7 +5,8 @@ const {
     getAllMissions,
     hasUserCompletedMission,
     recordMissionCompletion,
-    deleteMission
+    deleteMission,
+    updateMissionMessageId
 } = require('../../infrastructure/storage/missionStorage.js');
 const { getUserAddress } = require('../../infrastructure/storage/userAddressStore.js');
 const { ensureAddressWithFallback } = require('../../infrastructure/blockchain/addressUtils.js');
@@ -52,9 +53,12 @@ async function handleMissionCommand(msg, bot) {
             `🎁 Reward: 1 OORAH\n\n` +
             `💡 To complete this mission, reply to this message with ✅ or "done"`;
 
-        await bot.sendMessage(msg.chat.id, responseText, {
+        const sentMessage = await bot.sendMessage(msg.chat.id, responseText, {
             reply_to_message_id: msg.message_id
         });
+
+        // Store the actual mission message ID so replies bind correctly
+        await updateMissionMessageId(mission.id, sentMessage.message_id);
 
         console.log(`Mission ${mission.id} created in chat ${msg.chat.id}`);
     } catch (error) {
@@ -74,10 +78,21 @@ async function handleMissionCompletion(msg, bot) {
     }
 
     const repliedToMessageId = msg.reply_to_message.message_id;
-    const mission = await getMissionByMessageId(msg.chat.id, repliedToMessageId);
+    let mission = await getMissionByMessageId(msg.chat.id, repliedToMessageId);
     
     if (!mission) {
-        return;
+        // Fallback: parse Mission ID from the replied message text in case messageId was not stored
+        const replyText = msg.reply_to_message.text || msg.reply_to_message.caption || '';
+        const idMatch = replyText.match(/Mission ID:\s*([A-Z0-9]{6})/i);
+        if (idMatch && idMatch[1]) {
+            mission = await getMission(idMatch[1].toUpperCase());
+            if (!mission) {
+                console.log(`No mission found for parsed ID ${idMatch[1]} from reply text`);
+                return;
+            }
+        } else {
+            return;
+        }
     }
 
     const text = (msg.text || '').trim().toLowerCase();

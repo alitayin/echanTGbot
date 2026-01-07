@@ -39,7 +39,10 @@ async function createMission(description, chatId, messageId, creatorUsername) {
             id: missionId,
             description,
             chatId: String(chatId),
-            messageId: Number(messageId),
+            // Track all related message IDs to allow replies to multiple messages
+            messageId: Number(messageId), // legacy single ID
+            messageIds: [Number(messageId)],
+            commandMessageId: Number(messageId),
             creatorUsername,
             reward: 1, // 1 OORAH
             createdAt: new Date().toISOString(),
@@ -54,6 +57,34 @@ async function createMission(description, chatId, messageId, creatorUsername) {
     } catch (error) {
         console.error('Failed to create mission:', error);
         throw error;
+    }
+}
+
+/**
+ * Update stored message ID for a mission (used to bind to the bot's message)
+ * @param {string} missionId - Mission ID
+ * @param {number} messageId - Telegram message ID to store
+ * @returns {Promise<boolean>}
+ */
+async function updateMissionMessageId(missionId, messageId) {
+    try {
+        const key = `mission:${missionId}`;
+        const mission = await db.get(key);
+        const msgId = Number(messageId);
+        mission.messageId = msgId; // keep legacy field updated
+        mission.messageIds = Array.isArray(mission.messageIds) ? mission.messageIds : [];
+        if (!mission.messageIds.includes(msgId)) {
+            mission.messageIds.push(msgId);
+        }
+        mission.botMessageId = msgId;
+        await db.put(key, mission);
+        return true;
+    } catch (error) {
+        if (error.code === 'LEVEL_NOT_FOUND') {
+            return false;
+        }
+        console.error('Failed to update mission message ID:', error);
+        return false;
     }
 }
 
@@ -103,10 +134,13 @@ async function getMission(missionId) {
 async function getMissionByMessageId(chatId, messageId) {
     try {
         for await (const [key, value] of db.iterator()) {
-            if (key.startsWith('mission:') && 
-                value.chatId === String(chatId) && 
-                value.messageId === Number(messageId)) {
-                return value;
+            if (key.startsWith('mission:') && value.chatId === String(chatId)) {
+                const targetId = Number(messageId);
+                const hasArrayMatch = Array.isArray(value.messageIds) && value.messageIds.includes(targetId);
+                const hasLegacyMatch = value.messageId === targetId;
+                if (hasArrayMatch || hasLegacyMatch) {
+                    return value;
+                }
             }
         }
         return null;
@@ -327,6 +361,7 @@ module.exports = {
     getAllUserStats,
     decrementUserCompletionCount,
     deleteMission,
+    updateMissionMessageId,
     closeDB
 };
 
