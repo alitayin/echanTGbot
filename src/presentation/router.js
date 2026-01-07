@@ -838,7 +838,7 @@ function registerRoutes(bot) {
         });
     });
 
-    // Listener 6.6: stored message commands (custom /commandname [time]) (admin only)
+    // Listener 6.6: stored message commands (custom /commandname [time]) (all users)
     bot.on('message', async (msg) => {
         if (!msg.text) return;
         
@@ -880,16 +880,6 @@ function registerRoutes(bot) {
         }
 
         if (LIMITED_MODE) {
-            return;
-        }
-
-        // Check admin permission before processing stored message
-        if (!ALLOWED_USERS.includes(msg.from.username)) {
-            const { checkStoredMessageExists } = require('../application/usecases/messageHandler.js');
-            const exists = await checkStoredMessageExists(commandName);
-            if (exists) {
-                await bot.sendMessage(msg.chat.id, '❌ This command is only available to administrators.');
-            }
             return;
         }
 
