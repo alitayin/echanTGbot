@@ -280,6 +280,7 @@ async function handleSpamDeletion(msg, bot, query = null, skipCache = false) {
                             chatId: msg.chat.id,
                             userId: msg.from.id,
                             showBan: true,
+                            showUnban: true,
                         });
                     } else {
                         actionTaken = `cannot kick ${userName} (regular group limitation - first spam offense)`;

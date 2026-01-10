@@ -72,6 +72,17 @@ async function handleSpamModerationCallback(query, bot) {
     }
 
     if (success && query.message?.text) {
+      // After ban, keep an Unban button for quick reversal; after unban, clear buttons
+      const replyMarkup =
+        action === 'ban'
+          ? {
+              inline_keyboard: [[{
+                text: '♻️ Unban',
+                callback_data: `spam_action:unban:${chatId}:${userId}`,
+              }]],
+            }
+          : { inline_keyboard: [] };
+
       const actor =
         query.from.username
           ? `@${query.from.username}`
@@ -91,7 +102,7 @@ async function handleSpamModerationCallback(query, bot) {
       await bot.editMessageText(updatedText, {
         chat_id: query.message.chat.id,
         message_id: query.message.message_id,
-        reply_markup: { inline_keyboard: [] },
+        reply_markup: replyMarkup,
       });
     }
 
