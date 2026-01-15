@@ -6,6 +6,7 @@ const {
     saveMessage,
     saveScheduledMessage
 } = require('./storedMessageStore.js');
+const { exportTrustedRecords, importTrustedRecords } = require('./normalMessageTracker.js');
 
 // Initialize levelDB
 const dbPath = path.join(__dirname, '../../../data/userAddresses');
@@ -98,21 +99,24 @@ async function deleteUserAddress(userId) {
  */
 async function exportAllData() {
     try {
-        const [users, messages, scheduledMessages] = await Promise.all([
+        const [users, messages, scheduledMessages, trustedRecords] = await Promise.all([
             getAllUsers(),
             getAllMessages(),
-            getAllScheduledMessages()
+            getAllScheduledMessages(),
+            exportTrustedRecords()
         ]);
 
         const exportData = {
-            version: '1.1',
+            version: '1.2',
             exportDate: new Date().toISOString(),
             totalUsers: users.length,
             totalMessages: messages.length,
             totalScheduledMessages: scheduledMessages.length,
+            totalTrustedRecords: trustedRecords.length,
             users,
             messages,
-            scheduledMessages
+            scheduledMessages,
+            trustedRecords
         };
         return JSON.stringify(exportData, null, 2);
     } catch (error) {
@@ -130,7 +134,8 @@ async function importAllData(jsonData) {
     const results = {
         users: { success: 0, failed: 0, errors: [] },
         messages: { success: 0, failed: 0, errors: [] },
-        scheduledMessages: { success: 0, failed: 0, errors: [] }
+        scheduledMessages: { success: 0, failed: 0, errors: [] },
+        trustedRecords: { success: 0, failed: 0, errors: [] }
     };
 
     try {
@@ -142,6 +147,7 @@ async function importAllData(jsonData) {
 
         const messagesArray = Array.isArray(importData.messages) ? importData.messages : [];
         const scheduledArray = Array.isArray(importData.scheduledMessages) ? importData.scheduledMessages : [];
+        const trustedArray = Array.isArray(importData.trustedRecords) ? importData.trustedRecords : [];
 
         console.log(`🔄 Starting import of ${usersArray.length} users, ${messagesArray.length} messages, ${scheduledArray.length} scheduled messages...`);
 
@@ -237,10 +243,14 @@ async function importAllData(jsonData) {
             }
         }
 
+        const trustedResults = await importTrustedRecords(trustedArray);
+        results.trustedRecords = trustedResults;
+
         console.log(
             `✅ Import completed: users ${results.users.success}/${results.users.failed} (success/failed), ` +
             `messages ${results.messages.success}/${results.messages.failed}, ` +
-            `scheduled ${results.scheduledMessages.success}/${results.scheduledMessages.failed}`
+            `scheduled ${results.scheduledMessages.success}/${results.scheduledMessages.failed}, ` +
+            `trusted ${results.trustedRecords.success}/${results.trustedRecords.failed}`
         );
         return results;
     } catch (error) {

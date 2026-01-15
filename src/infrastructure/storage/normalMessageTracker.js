@@ -143,6 +143,72 @@ async function resetNormalMessageStreakInGroup(chatId, userId) {
 }
 
 /**
+ * Export all trusted tracker records for backup.
+ * @returns {Promise<Array<{chatId: string, userId: string, streak: number, trusted: boolean, lastUpdated: number}>>}
+ */
+async function exportTrustedRecords() {
+    await ensureLoaded();
+    const records = [];
+    for (const [key, record] of normalMessageTracker.entries()) {
+        if (!record || typeof record !== 'object') {
+            continue;
+        }
+        const [chatId, userId] = String(key).split(':');
+        if (!chatId || !userId) {
+            continue;
+        }
+        const streakValue = Number(record.streak);
+        const lastUpdatedValue = Number(record.lastUpdated);
+        records.push({
+            chatId,
+            userId,
+            streak: Number.isFinite(streakValue) && streakValue >= 0 ? streakValue : 0,
+            trusted: record.trusted === true,
+            lastUpdated: Number.isFinite(lastUpdatedValue) ? lastUpdatedValue : Date.now(),
+        });
+    }
+    return records;
+}
+
+/**
+ * Import trusted tracker records from backup.
+ * @param {Array} records
+ * @returns {Promise<{success: number, failed: number, errors: Array<string>}>}
+ */
+async function importTrustedRecords(records) {
+    await ensureLoaded();
+    const results = { success: 0, failed: 0, errors: [] };
+    if (!Array.isArray(records)) {
+        return results;
+    }
+    for (const record of records) {
+        try {
+            if (!record || record.chatId == null || record.userId == null) {
+                results.failed += 1;
+                results.errors.push(`Missing chatId or userId for record: ${JSON.stringify(record)}`);
+                continue;
+            }
+            const key = makeKey(record.chatId, record.userId);
+            const streakValue = Number(record.streak);
+            const lastUpdatedValue = Number(record.lastUpdated);
+            const data = {
+                streak: Number.isFinite(streakValue) && streakValue >= 0 ? streakValue : 0,
+                trusted: record.trusted === true,
+                lastUpdated: Number.isFinite(lastUpdatedValue) ? lastUpdatedValue : Date.now(),
+            };
+            normalMessageTracker.set(key, data);
+            await persistRecord(key, data);
+            results.success += 1;
+        } catch (error) {
+            results.failed += 1;
+            results.errors.push(`Failed to import trusted record: ${error.message}`);
+            console.error('❌ Failed to import trusted record:', error);
+        }
+    }
+    return results;
+}
+
+/**
  * Periodic cleanup to avoid unbounded memory growth.
  * Records that have not been updated for more than 24 hours are removed.
  */
@@ -170,6 +236,8 @@ module.exports = {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
     resetNormalMessageStreakInGroup,
+    exportTrustedRecords,
+    importTrustedRecords,
 };
 
 

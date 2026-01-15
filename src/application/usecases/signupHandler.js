@@ -184,6 +184,7 @@ async function handleExportData(msg, bot) {
             `📊 Users: ${data.totalUsers}\n` +
             `💾 Templates: ${data.totalMessages ?? 0}\n` +
             `⏰ Scheduled: ${data.totalScheduledMessages ?? 0}\n` +
+            `✅ Trusted: ${data.totalTrustedRecords ?? 0}\n` +
             `📅 Export date: ${new Date(data.exportDate).toLocaleString()}\n\n` +
             `💡 To import this data on another server, use:\n/importdata (reply to the exported file)`
         );
@@ -231,12 +232,14 @@ async function handleImportData(msg, bot) {
         message += `📊 Users imported: ${results.users.success}\n`;
         message += `💾 Templates imported: ${results.messages.success}\n`;
         message += `⏰ Scheduled imported: ${results.scheduledMessages.success}\n`;
+        message += `✅ Trusted imported: ${results.trustedRecords.success}\n`;
         
         const hasUserErrors = results.users.failed > 0;
         const hasMsgErrors = results.messages.failed > 0;
         const hasSchedErrors = results.scheduledMessages.failed > 0;
+        const hasTrustedErrors = results.trustedRecords.failed > 0;
 
-        if (hasUserErrors || hasMsgErrors || hasSchedErrors) {
+        if (hasUserErrors || hasMsgErrors || hasSchedErrors || hasTrustedErrors) {
             message += `\n⚠️ Errors encountered:\n`;
 
             if (hasUserErrors) {
@@ -251,6 +254,10 @@ async function handleImportData(msg, bot) {
                 message += `• Scheduled failed: ${results.scheduledMessages.failed}\n`;
                 results.scheduledMessages.errors.slice(0, 3).forEach(err => message += `   - ${err}\n`);
             }
+            if (hasTrustedErrors) {
+                message += `• Trusted failed: ${results.trustedRecords.failed}\n`;
+                results.trustedRecords.errors.slice(0, 3).forEach(err => message += `   - ${err}\n`);
+            }
         }
 
         await bot.sendMessage(msg.chat.id, message);
@@ -258,7 +265,8 @@ async function handleImportData(msg, bot) {
             `Data imported by @${msg.from.username}: ` +
             `users ${results.users.success}/${results.users.failed}, ` +
             `messages ${results.messages.success}/${results.messages.failed}, ` +
-            `scheduled ${results.scheduledMessages.success}/${results.scheduledMessages.failed}`
+            `scheduled ${results.scheduledMessages.success}/${results.scheduledMessages.failed}, ` +
+            `trusted ${results.trustedRecords.success}/${results.trustedRecords.failed}`
         );
     } catch (error) {
         console.error('Error in handleImportData:', error);
