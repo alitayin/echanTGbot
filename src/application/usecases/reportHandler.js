@@ -10,6 +10,7 @@ const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
 const { addSpamMessage } = require('../../infrastructure/storage/spamMessageCache.js');
 const { addSpamImage } = require('../../infrastructure/storage/spamImageStore.js');
 const { hasImageMedia, getImageFileId } = require('../../infrastructure/telegram/mediaHelper.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 function getTextContent(msg) {
   const text = (msg?.text || '').trim();
@@ -72,7 +73,7 @@ async function handleReportCommand(msg, bot) {
 
   const reporterUsername = msg.from.username;
   const notificationMessage = `Thanks for the report @${reporterUsername}, I've removed the spam message.`;
-  await sendChatNotification(bot, msg.chat.id, notificationMessage);
+  await sendPromptMessage(bot, msg.chat.id, notificationMessage);
 
   const reportInfo = `Reported message from ${targetUsername} deleted by me, report by @${reporterUsername}`;
 
