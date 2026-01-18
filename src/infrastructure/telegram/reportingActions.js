@@ -49,6 +49,7 @@ async function deleteMessageSafe(bot, chatId, messageId) {
   }
 }
 
+
 async function sendChatNotification(bot, chatId, notificationMessage) {
   try {
     await bot.sendMessage(chatId, notificationMessage);

@@ -1,12 +1,13 @@
 const { ensureAddressWithFallback, InvalidAddressError } = require('../../infrastructure/blockchain/addressUtils.js');
 const { saveUserAddress, getUserAddress } = require('../../infrastructure/storage/userAddressStore.js');
 const { escapeMarkdown } = require('../../domain/formatting/markdown.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 async function handleSignup(msg, bot) {
     const parts = msg.text.trim().split(/\s+/);
     
     if (parts.length < 2) {
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id, 
             '❌ Usage: /signup <ecash_address>\n\nExample:\n/signup ecash:qz2708636snqhsxu8wnlka78h6fdp77ar59jrf5035'
         );
@@ -26,14 +27,14 @@ async function handleSignup(msg, bot) {
         
         if (success) {
             if (existingData) {
-                await bot.sendMessage(
+                await sendPromptMessage(
                     msg.chat.id, 
                     `✅ Your eCash address has been updated!\n\n📍 Address: \`${validAddress}\``,
                     { parse_mode: 'Markdown' }
                 );
                 console.log(`Address updated for @${username} (${userId}): ${validAddress}`);
             } else {
-                await bot.sendMessage(
+                await sendPromptMessage(
                     msg.chat.id, 
                     `✅ Your eCash address has been registered successfully!\n\n📍 Address: \`${validAddress}\``,
                     { parse_mode: 'Markdown' }
@@ -41,18 +42,18 @@ async function handleSignup(msg, bot) {
                 console.log(`New address registered for @${username} (${userId}): ${validAddress}`);
             }
         } else {
-            await bot.sendMessage(msg.chat.id, '❌ Failed to save your address. Please try again later.');
+            await sendPromptMessage(msg.chat.id, '❌ Failed to save your address. Please try again later.');
         }
     } catch (error) {
         if (error instanceof InvalidAddressError || error.name === 'InvalidAddressError') {
-            await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id, 
                 '❌ Invalid eCash address. Please check your address and try again.\n\nAccepted formats:\n- ecash:qz2708636snqhsxu8wnlka78h6fdp77ar59jrf5035\n- qz2708636snqhsxu8wnlka78h6fdp77ar59jrf5035'
             );
             console.log(`Invalid address attempt by @${username} (${userId}): ${rawAddress}`);
         } else {
             console.error('Error in handleSignup:', error);
-            await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again later.');
+            await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again later.');
         }
     }
 }
@@ -61,7 +62,7 @@ async function handleGetAddress(msg, bot) {
     const parts = msg.text.trim().split(/\s+/);
     
     if (parts.length < 2) {
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id, 
             '❌ Usage: /getaddress @username\n\nExample:\n/getaddress @alice'
         );
@@ -79,7 +80,7 @@ async function handleGetAddress(msg, bot) {
         );
         
         if (!userData) {
-            await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id, 
                 `❌ No registered address found for @${escapeMarkdown(targetUsername)}.\n\nThe user may not have registered yet, or the username doesn't match our records.`,
                 { parse_mode: 'Markdown' }
@@ -87,7 +88,7 @@ async function handleGetAddress(msg, bot) {
             return;
         }
 
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id,
             `📋 Address for @${escapeMarkdown(userData.username)}:\n\n` +
             `📍 Address: \`${userData.address}\`\n` +
@@ -100,7 +101,7 @@ async function handleGetAddress(msg, bot) {
         console.log(`Address queried: @${userData.username} by @${msg.from.username}`);
     } catch (error) {
         console.error('Error in handleGetAddress:', error);
-        await bot.sendMessage(msg.chat.id, '❌ Failed to retrieve address. Please try again later.');
+        await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve address. Please try again later.');
     }
 }
 
@@ -112,7 +113,7 @@ async function handleListAddresses(msg, bot, page = 0) {
         const allUsers = await getAllUsers();
         
         if (allUsers.length === 0) {
-            await bot.sendMessage(msg.chat.id, '📋 No users have registered their addresses yet.');
+            await sendPromptMessage(msg.chat.id, '📋 No users have registered their addresses yet.');
             return;
         }
 
@@ -146,12 +147,12 @@ async function handleListAddresses(msg, bot, page = 0) {
             }
         }
         
-        await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+        await sendPromptMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
         
         console.log(`Address list (page ${displayPage}/${totalPages}) viewed by @${msg.from.username}`);
     } catch (error) {
         console.error('Error in handleListAddresses:', error);
-        await bot.sendMessage(msg.chat.id, '❌ Failed to retrieve address list. Please try again later.');
+        await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve address list. Please try again later.');
     }
 }
 
@@ -159,7 +160,7 @@ async function handleExportData(msg, bot) {
     try {
         const { exportAllData } = require('../../infrastructure/storage/userAddressStore.js');
         
-        await bot.sendMessage(msg.chat.id, '📦 Exporting user data...');
+        await sendPromptMessage(msg.chat.id, '📦 Exporting user data...');
         
         const jsonData = await exportAllData();
         
@@ -178,7 +179,7 @@ async function handleExportData(msg, bot) {
         );
         
         const data = JSON.parse(jsonData);
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id,
             `✅ Export completed!\n\n` +
             `📊 Users: ${data.totalUsers}\n` +
@@ -192,7 +193,7 @@ async function handleExportData(msg, bot) {
         console.log(`Data exported by @${msg.from.username}: ${data.totalUsers} users`);
     } catch (error) {
         console.error('Error in handleExportData:', error);
-        await bot.sendMessage(msg.chat.id, '❌ Failed to export data. Please try again later.');
+        await sendPromptMessage(msg.chat.id, '❌ Failed to export data. Please try again later.');
     }
 }
 
@@ -200,7 +201,7 @@ async function handleImportData(msg, bot) {
     try {
         // Check if replying to a document
         if (!msg.reply_to_message || !msg.reply_to_message.document) {
-            await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id,
                 '❌ Usage: Reply to an exported JSON file with /importdata\n\n⚠️ Warning: This will add/update users in the database. Existing users with the same ID will be updated.'
             );
@@ -211,11 +212,11 @@ async function handleImportData(msg, bot) {
         
         // Check file type
         if (!document.file_name.endsWith('.json')) {
-            await bot.sendMessage(msg.chat.id, '❌ Please reply to a JSON file exported by /exportdata');
+            await sendPromptMessage(msg.chat.id, '❌ Please reply to a JSON file exported by /exportdata');
             return;
         }
 
-        await bot.sendMessage(msg.chat.id, '📥 Importing user data...');
+        await sendPromptMessage(msg.chat.id, '📥 Importing user data...');
 
         // Download file
         const fileLink = await bot.getFileLink(document.file_id);
@@ -270,7 +271,7 @@ async function handleImportData(msg, bot) {
         );
     } catch (error) {
         console.error('Error in handleImportData:', error);
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id,
             `❌ Failed to import data: ${error.message}\n\nPlease make sure the file is a valid export from /exportdata`
         );

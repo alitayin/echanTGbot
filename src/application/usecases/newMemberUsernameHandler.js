@@ -7,6 +7,7 @@ const {
 const { fetchMessageAnalysis } = require('../../infrastructure/ai/messageAnalysis.js');
 const { kickUser, deleteMessage } = require('../../infrastructure/telegram/adminActions.js');
 const { isSpamMessage } = require('../../domain/policies/spamPolicy.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 function getUserDisplayName(user) {
     const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
@@ -86,7 +87,7 @@ async function handleNewMemberSpamUsername(user, chatId, messageId, bot) {
         // Send notification to group
         const userIdentifier = user.username ? `@${user.username}` : `User (ID: ${user.id})`;
         const groupNotification = `⚠️ ${userIdentifier} has been removed for having a suspicious username.`;
-        await bot.sendMessage(chatId, groupNotification);
+        await sendPromptMessage(chatId, groupNotification);
         
         // Send report to notification group
         const reportMessage = `🚨 Suspicious Username Detected (New Member)\n\n` +

@@ -8,6 +8,7 @@ const {
     deleteScheduledMessageByName,
     getAllScheduledMessages
 } = require('../../infrastructure/storage/storedMessageStore.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 function parseTimeString(timeStr) {
     const match = timeStr.match(/^([\d.]+)h$/i);
@@ -24,13 +25,13 @@ function parseTimeString(timeStr) {
 async function handleMessageCommand(msg, bot) {
     try {
         if (!msg.reply_to_message) {
-            await bot.sendMessage(msg.chat.id, '❌ Please reply to a message to save it.\n\nUsage: /message <commandname> [time]\nExample: /message reminder 6h');
+            await sendPromptMessage(msg.chat.id, '❌ Please reply to a message to save it.\n\nUsage: /message <commandname> [time]\nExample: /message reminder 6h');
             return;
         }
 
         const parts = msg.text.trim().split(/\s+/);
         if (parts.length < 2) {
-            await bot.sendMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /message <commandname> [time]\nExample: /message reminder 6h');
+            await sendPromptMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /message <commandname> [time]\nExample: /message reminder 6h');
             return;
         }
 
@@ -38,7 +39,7 @@ async function handleMessageCommand(msg, bot) {
         const timeParam = parts[2] ? parts[2].trim() : null;
         
         if (!/^[a-zA-Z0-9_]+$/.test(commandName)) {
-            await bot.sendMessage(msg.chat.id, '❌ Command name can only contain letters, numbers, and underscores.');
+            await sendPromptMessage(msg.chat.id, '❌ Command name can only contain letters, numbers, and underscores.');
             return;
         }
 
@@ -72,14 +73,14 @@ async function handleMessageCommand(msg, bot) {
                 console.log(`📸 Downloaded photo: ${photoBuffer.length} bytes`);
             } catch (error) {
                 console.error('Failed to download photo:', error);
-                await bot.sendMessage(msg.chat.id, '❌ Failed to download photo. Please try again.');
+                await sendPromptMessage(msg.chat.id, '❌ Failed to download photo. Please try again.');
                 return;
             }
         }
         
         // Allow saving if there's text OR photo
         if (!messageToSave && !photoBuffer) {
-            await bot.sendMessage(msg.chat.id, '❌ The replied message has no content to save.');
+            await sendPromptMessage(msg.chat.id, '❌ The replied message has no content to save.');
             return;
         }
 
@@ -89,7 +90,7 @@ async function handleMessageCommand(msg, bot) {
         if (timeParam) {
             const intervalMs = parseTimeString(timeParam);
             if (!intervalMs) {
-                await bot.sendMessage(msg.chat.id, '❌ Invalid time format. Use format like: 0.1h, 6h, 24h');
+                await sendPromptMessage(msg.chat.id, '❌ Invalid time format. Use format like: 0.1h, 6h, 24h');
                 return;
             }
 
@@ -101,12 +102,12 @@ async function handleMessageCommand(msg, bot) {
                 const contentPreview = photoBuffer 
                     ? `${photoBuffer ? '🖼️ Photo' : ''}${messageToSave ? ' + ' + messageToSave.substring(0, 30) : ''}${messageToSave.length > 30 ? '...' : ''}`
                     : `${messageToSave.substring(0, 50)}${messageToSave.length > 50 ? '...' : ''}`;
-                await bot.sendMessage(
+                await sendPromptMessage(
                     msg.chat.id, 
                     `⏰ Repeating message scheduled: "${commandName}"\n\n🔄 Repeats every ${hours}h\n⏱️ First send: ${firstSendTime}\n\n📝 Preview: ${contentPreview}\n\n💡 Use /stopmessage ${commandName} to stop`
                 );
             } else {
-                await bot.sendMessage(msg.chat.id, '❌ Failed to schedule message. Please try again.');
+                await sendPromptMessage(msg.chat.id, '❌ Failed to schedule message. Please try again.');
             }
             return;
         }
@@ -114,7 +115,7 @@ async function handleMessageCommand(msg, bot) {
         // Regular message (not scheduled)
         const exists = await messageExists(commandName);
         if (exists) {
-            await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id, 
                 `⚠️ Command name "${commandName}" already exists. The message will be overwritten.\n\nContinue?`,
                 {
@@ -135,30 +136,30 @@ async function handleMessageCommand(msg, bot) {
             const contentPreview = photoBuffer 
                 ? `${photoBuffer ? '🖼️ Photo' : ''}${messageToSave ? ' + ' + messageToSave.substring(0, 30) : ''}${messageToSave.length > 30 ? '...' : ''}`
                 : `${messageToSave.substring(0, 50)}${messageToSave.length > 50 ? '...' : ''}`;
-            await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id, 
                 `✅ Message saved with command: "${commandName}"\n\n📝 Preview: ${contentPreview}`
             );
         } else {
-            await bot.sendMessage(msg.chat.id, '❌ Failed to save message. Please try again.');
+            await sendPromptMessage(msg.chat.id, '❌ Failed to save message. Please try again.');
         }
     } catch (error) {
         console.error('Failed to handle message command:', error);
-        await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again.');
     }
 }
 
 async function handleShowMessageCommand(msg, bot) {
     try {
         if (msg.chat.type !== 'private') {
-            await bot.sendMessage(msg.chat.id, '❌ This command is only available in private chat with the bot.');
+            await sendPromptMessage(msg.chat.id, '❌ This command is only available in private chat with the bot.');
             return;
         }
 
         const messages = await getAllMessages();
 
         if (messages.length === 0) {
-            await bot.sendMessage(msg.chat.id, '📭 No saved messages yet.\n\nUse /message <commandname> (as a reply to any message) to save messages.');
+            await sendPromptMessage(msg.chat.id, '📭 No saved messages yet.\n\nUse /message <commandname> (as a reply to any message) to save messages.');
             return;
         }
 
@@ -222,14 +223,14 @@ async function handleShowMessageCommand(msg, bot) {
             }
             
             for (const chunk of chunks) {
-                await bot.sendMessage(msg.chat.id, chunk, { parse_mode: 'HTML' });
+                await sendPromptMessage(msg.chat.id, chunk, { parse_mode: 'HTML' });
             }
         } else {
-            await bot.sendMessage(msg.chat.id, messageText, { parse_mode: 'HTML' });
+            await sendPromptMessage(msg.chat.id, messageText, { parse_mode: 'HTML' });
         }
     } catch (error) {
         console.error('Failed to handle show message command:', error);
-        await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again.');
     }
 }
 
@@ -237,7 +238,7 @@ async function handleDeleteMessageCommand(msg, bot) {
     try {
         const parts = msg.text.trim().split(/\s+/);
         if (parts.length < 2) {
-            await bot.sendMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /deletemessage <commandname>');
+            await sendPromptMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /deletemessage <commandname>');
             return;
         }
 
@@ -245,7 +246,7 @@ async function handleDeleteMessageCommand(msg, bot) {
 
         const messageData = await getMessage(commandName);
         if (!messageData) {
-            await bot.sendMessage(msg.chat.id, `❌ No message found with command name "${commandName}".`);
+            await sendPromptMessage(msg.chat.id, `❌ No message found with command name "${commandName}".`);
             return;
         }
 
@@ -262,7 +263,7 @@ async function handleDeleteMessageCommand(msg, bot) {
             contentDisplay = messageData.messageContent.length > 50 ? `${preview}...` : preview;
         }
         
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id,
             `⚠️ Are you sure you want to delete this message?\n\nCommand: "${commandName}"\n📝 ${contentDisplay}`,
             {
@@ -276,7 +277,7 @@ async function handleDeleteMessageCommand(msg, bot) {
         );
     } catch (error) {
         console.error('Failed to handle delete message command:', error);
-        await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again.');
     }
 }
 
@@ -362,7 +363,7 @@ async function handleStoredMessageCommand(msg, bot, commandName, timeParam = nul
         if (timeParam) {
             const intervalMs = parseTimeString(timeParam);
             if (!intervalMs) {
-                await bot.sendMessage(msg.chat.id, '❌ Invalid time format. Use format like: 0.1h, 6h, 24h');
+                await sendPromptMessage(msg.chat.id, '❌ Invalid time format. Use format like: 0.1h, 6h, 24h');
                 return true;
             }
 
@@ -380,12 +381,12 @@ async function handleStoredMessageCommand(msg, bot, commandName, timeParam = nul
                 const contentPreview = photoData 
                     ? `${photoData ? '🖼️ Photo' : ''}${messageData.messageContent ? ' + ' + messageData.messageContent.substring(0, 30) : ''}${messageData.messageContent.length > 30 ? '...' : ''}`
                     : `${messageData.messageContent.substring(0, 50)}${messageData.messageContent.length > 50 ? '...' : ''}`;
-                await bot.sendMessage(
+                await sendPromptMessage(
                     msg.chat.id, 
                     `⏰ Repeating message scheduled: "${commandName}"\n\n🔄 Repeats every ${hours}h\n⏱️ First send: ${firstSendTime}\n\n📝 Preview: ${contentPreview}\n\n💡 Use /stopmessage ${commandName} to stop`
                 );
             } else {
-                await bot.sendMessage(msg.chat.id, '❌ Failed to schedule message. Please try again.');
+                await sendPromptMessage(msg.chat.id, '❌ Failed to schedule message. Please try again.');
             }
             return true;
         }
@@ -417,7 +418,7 @@ async function handleStopMessageCommand(msg, bot) {
     try {
         const parts = msg.text.trim().split(/\s+/);
         if (parts.length < 2) {
-            await bot.sendMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /stopmessage <commandname>');
+            await sendPromptMessage(msg.chat.id, '❌ Please provide a command name.\n\nUsage: /stopmessage <commandname>');
             return;
         }
 
@@ -425,27 +426,27 @@ async function handleStopMessageCommand(msg, bot) {
 
         const success = await deleteScheduledMessageByName(commandName);
         if (success) {
-            await bot.sendMessage(msg.chat.id, `✅ Stopped repeating message: "${commandName}"`);
+            await sendPromptMessage(msg.chat.id, `✅ Stopped repeating message: "${commandName}"`);
         } else {
-            await bot.sendMessage(msg.chat.id, `❌ No repeating message found with name "${commandName}".`);
+            await sendPromptMessage(msg.chat.id, `❌ No repeating message found with name "${commandName}".`);
         }
     } catch (error) {
         console.error('Failed to stop message:', error);
-        await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again.');
     }
 }
 
 async function handleListScheduledCommand(msg, bot) {
     try {
         if (msg.chat.type !== 'private') {
-            await bot.sendMessage(msg.chat.id, '❌ This command is only available in private chat with the bot.');
+            await sendPromptMessage(msg.chat.id, '❌ This command is only available in private chat with the bot.');
             return;
         }
 
         const scheduledMessages = await getAllScheduledMessages();
 
         if (scheduledMessages.length === 0) {
-            await bot.sendMessage(msg.chat.id, '📭 No scheduled repeating messages.');
+            await sendPromptMessage(msg.chat.id, '📭 No scheduled repeating messages.');
             return;
         }
 
@@ -475,10 +476,10 @@ async function handleListScheduledCommand(msg, bot) {
 
         messageText += '\n💡 Use /stopmessage &lt;commandname&gt; to stop a repeating message.';
 
-        await bot.sendMessage(msg.chat.id, messageText, { parse_mode: 'HTML' });
+        await sendPromptMessage(msg.chat.id, messageText, { parse_mode: 'HTML' });
     } catch (error) {
         console.error('Failed to list scheduled messages:', error);
-        await bot.sendMessage(msg.chat.id, '❌ An error occurred. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ An error occurred. Please try again.');
     }
 }
 

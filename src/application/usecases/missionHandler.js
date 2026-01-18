@@ -13,6 +13,7 @@ const { ensureAddressWithFallback } = require('../../infrastructure/blockchain/a
 const { resolveTokenAlias } = require('../../infrastructure/blockchain/tokenInfo.js');
 const { sendSlp, isMnemonicConfigured } = require('../../infrastructure/blockchain/tokenSender.js');
 const { NOTIFICATION_GROUP_ID } = require('../../../config/config.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 const OORAH_TOKEN_ID = resolveTokenAlias('oorah');
 
@@ -24,7 +25,7 @@ const OORAH_TOKEN_ID = resolveTokenAlias('oorah');
 async function handleMissionCommand(msg, bot) {
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
     if (!isGroup) {
-        await bot.sendMessage(msg.chat.id, '❌ This command can only be used in groups.');
+        await sendPromptMessage(msg.chat.id, '❌ This command can only be used in groups.');
         return;
     }
 
@@ -32,7 +33,7 @@ async function handleMissionCommand(msg, bot) {
     const description = text.replace(/^\/mission\s*/i, '').trim();
     
     if (!description) {
-        await bot.sendMessage(
+        await sendPromptMessage(
             msg.chat.id, 
             '❌ Usage: /mission <description>\n\nExample:\n/mission Complete 10 transactions on eCash network'
         );
@@ -63,7 +64,7 @@ async function handleMissionCommand(msg, bot) {
         console.log(`Mission ${mission.id} created in chat ${msg.chat.id}`);
     } catch (error) {
         console.error('Failed to create mission:', error);
-        await bot.sendMessage(msg.chat.id, '❌ Failed to create mission. Please try again.');
+        await sendPromptMessage(msg.chat.id, '❌ Failed to create mission. Please try again.');
     }
 }
 
@@ -107,27 +108,21 @@ async function handleMissionCompletion(msg, bot) {
         const alreadyCompleted = await hasUserCompletedMission(mission.id, userId);
         if (alreadyCompleted) {
             console.log(`⚠️ User @${username} already completed mission ${mission.id}`);
-            const warningMsg = await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id,
                 `⚠️ @${username}, you have already completed mission ${mission.id}. Each mission can only be completed once per user.`,
                 { reply_to_message_id: msg.message_id }
             );
-            setTimeout(() => {
-                bot.deleteMessage(msg.chat.id, warningMsg.message_id).catch(() => {});
-            }, 10000);
             return;
         }
 
         const addressData = await getUserAddress(userId);
         if (!addressData) {
-            const warningMsg = await bot.sendMessage(
+            await sendPromptMessage(
                 msg.chat.id,
                 `❌ @${username}, you need to register first!\n\nPlease use /signup <address> to register your eCash address before completing missions.`,
                 { reply_to_message_id: msg.message_id }
             );
-            setTimeout(() => {
-                bot.deleteMessage(msg.chat.id, warningMsg.message_id).catch(() => {});
-            }, 10000);
             return;
         }
 

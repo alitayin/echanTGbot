@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 const MODS_FILE = path.join(__dirname, '../../../config/mods.json');
 
@@ -32,20 +33,20 @@ async function handleAddLicense(msg, bot) {
   const parts = msg.text.trim().split(/\s+/);
   
   if (parts.length < 2) {
-    await bot.sendMessage(msg.chat.id, '❌ Usage: /addlicense @username');
+    await sendPromptMessage(msg.chat.id, '❌ Usage: /addlicense @username');
     return;
   }
 
   const username = extractUsername(parts[1]);
   if (!username) {
-    await bot.sendMessage(msg.chat.id, '❌ Invalid username format. Use: /addlicense @username');
+    await sendPromptMessage(msg.chat.id, '❌ Invalid username format. Use: /addlicense @username');
     return;
   }
 
   const config = await loadModsConfig();
   
   if (config.reporters.includes(username)) {
-    await bot.sendMessage(msg.chat.id, `⚠️ @${username} already has report license.`);
+    await sendPromptMessage(msg.chat.id, `⚠️ @${username} already has report license.`);
     return;
   }
 
@@ -54,10 +55,10 @@ async function handleAddLicense(msg, bot) {
   const success = await saveModsConfig(config);
   
   if (success) {
-    await bot.sendMessage(msg.chat.id, `✅ License added for @${username}. They can now use /report command.`);
+    await sendPromptMessage(msg.chat.id, `✅ License added for @${username}. They can now use /report command.`);
     console.log(`License added: @${username} by @${msg.from.username}`);
   } else {
-    await bot.sendMessage(msg.chat.id, '❌ Failed to save license. Please try again.');
+    await sendPromptMessage(msg.chat.id, '❌ Failed to save license. Please try again.');
   }
 }
 
@@ -65,20 +66,20 @@ async function handleRemoveLicense(msg, bot) {
   const parts = msg.text.trim().split(/\s+/);
   
   if (parts.length < 2) {
-    await bot.sendMessage(msg.chat.id, '❌ Usage: /removelicense @username');
+    await sendPromptMessage(msg.chat.id, '❌ Usage: /removelicense @username');
     return;
   }
 
   const username = extractUsername(parts[1]);
   if (!username) {
-    await bot.sendMessage(msg.chat.id, '❌ Invalid username format. Use: /removelicense @username');
+    await sendPromptMessage(msg.chat.id, '❌ Invalid username format. Use: /removelicense @username');
     return;
   }
 
   const config = await loadModsConfig();
   
   if (!config.reporters.includes(username)) {
-    await bot.sendMessage(msg.chat.id, `⚠️ @${username} doesn't have report license.`);
+    await sendPromptMessage(msg.chat.id, `⚠️ @${username} doesn't have report license.`);
     return;
   }
 
@@ -87,10 +88,10 @@ async function handleRemoveLicense(msg, bot) {
   const success = await saveModsConfig(config);
   
   if (success) {
-    await bot.sendMessage(msg.chat.id, `✅ License removed from @${username}. They can no longer use /report command.`);
+    await sendPromptMessage(msg.chat.id, `✅ License removed from @${username}. They can no longer use /report command.`);
     console.log(`License removed: @${username} by @${msg.from.username}`);
   } else {
-    await bot.sendMessage(msg.chat.id, '❌ Failed to save changes. Please try again.');
+    await sendPromptMessage(msg.chat.id, '❌ Failed to save changes. Please try again.');
   }
 }
 
@@ -98,14 +99,14 @@ async function handleListLicenses(msg, bot) {
   const config = await loadModsConfig();
   
   if (config.reporters.length === 0) {
-    await bot.sendMessage(msg.chat.id, '📋 No users have report licenses.');
+    await sendPromptMessage(msg.chat.id, '📋 No users have report licenses.');
     return;
   }
 
   const list = config.reporters.map((username, index) => `${index + 1}. \`@${username}\``).join('\n');
   const message = `📋 Users with report license (${config.reporters.length}):\n\n${list}`;
   
-  await bot.sendMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
+  await sendPromptMessage(msg.chat.id, message, { parse_mode: 'Markdown' });
 }
 
 async function getReporters() {
