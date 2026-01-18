@@ -50,6 +50,40 @@ function stripEmoji(text = '') {
     return text.replace(emojiRegex, '');
 }
 
+function extractReplyMarkupSummary(replyMarkup) {
+    const parts = [];
+    if (!replyMarkup) return parts;
+
+    if (Array.isArray(replyMarkup.inline_keyboard)) {
+        for (const row of replyMarkup.inline_keyboard) {
+            if (!Array.isArray(row)) continue;
+            for (const button of row) {
+                if (!button) continue;
+                if (button.text) parts.push(`[Button]: ${button.text}`);
+                if (button.url) parts.push(`[Button URL]: ${button.url}`);
+                if (button.callback_data) parts.push(`[Button Callback]: ${button.callback_data}`);
+                if (button.switch_inline_query) parts.push(`[Button Switch Inline]: ${button.switch_inline_query}`);
+                if (button.switch_inline_query_current_chat) {
+                    parts.push(`[Button Switch Inline Here]: ${button.switch_inline_query_current_chat}`);
+                }
+                if (button.web_app?.url) parts.push(`[Button WebApp]: ${button.web_app.url}`);
+                if (button.login_url?.url) parts.push(`[Button Login URL]: ${button.login_url.url}`);
+            }
+        }
+    }
+
+    if (Array.isArray(replyMarkup.keyboard)) {
+        for (const row of replyMarkup.keyboard) {
+            if (!Array.isArray(row)) continue;
+            for (const button of row) {
+                if (button?.text) parts.push(`[Keyboard Button]: ${button.text}`);
+            }
+        }
+    }
+
+    return parts;
+}
+
 // Heuristic to decide whether we should consult API for language confirmation.
 // - Always compute non-ASCII ratio on emoji-stripped text.
 // - For long text (>50), also compute English high-frequency coverage.
@@ -146,6 +180,65 @@ function buildCombinedAnalysisQuery(msg) {
             if (quoteText) {
                 contentParts.push(`[Quoted]: ${quoteText}`);
             }
+        }
+
+        const replyMarkupParts = extractReplyMarkupSummary(msg?.reply_markup);
+        if (replyMarkupParts.length) {
+            contentParts.push(...replyMarkupParts);
+        }
+
+        if (msg?.poll?.question) {
+            contentParts.push(`[Poll]: ${msg.poll.question}`);
+            const options = Array.isArray(msg.poll.options)
+                ? msg.poll.options.map((opt) => opt?.text).filter(Boolean)
+                : [];
+            if (options.length) {
+                contentParts.push(`[Poll Options]: ${options.join(' | ')}`);
+            }
+        }
+
+        if (msg?.contact) {
+            const contactName = `${msg.contact.first_name || ''} ${msg.contact.last_name || ''}`.trim();
+            const contactPhone = msg.contact.phone_number || '';
+            const contactId = msg.contact.user_id ? `uid:${msg.contact.user_id}` : '';
+            const contactSummary = [contactName, contactPhone, contactId].filter(Boolean).join(' ');
+            if (contactSummary) {
+                contentParts.push(`[Contact]: ${contactSummary}`);
+            }
+        }
+
+        if (msg?.location) {
+            const { latitude, longitude } = msg.location;
+            if (typeof latitude === 'number' && typeof longitude === 'number') {
+                contentParts.push(`[Location]: ${latitude}, ${longitude}`);
+            }
+        }
+
+        if (msg?.venue) {
+            const venueName = msg.venue.title || '';
+            const venueAddress = msg.venue.address || '';
+            const venueSummary = [venueName, venueAddress].filter(Boolean).join(' - ');
+            if (venueSummary) {
+                contentParts.push(`[Venue]: ${venueSummary}`);
+            }
+        }
+
+        if (msg?.game?.title) {
+            contentParts.push(`[Game]: ${msg.game.title}`);
+        }
+
+        if (msg?.dice) {
+            const diceEmoji = msg.dice.emoji || '';
+            const diceValue = typeof msg.dice.value === 'number' ? String(msg.dice.value) : '';
+            const diceSummary = [diceEmoji, diceValue].filter(Boolean).join(' ');
+            if (diceSummary) {
+                contentParts.push(`[Dice]: ${diceSummary}`);
+            }
+        }
+
+        if (msg?.document && !hasImageMedia(msg)) {
+            const docLabel = msg.document.file_name || msg.document.mime_type || 'document';
+            contentParts.push(`[Document]: ${docLabel}`);
         }
 
         if (isForwarded) {
