@@ -74,6 +74,8 @@ async function handleReportCommand(msg, bot) {
   const notificationMessage = `Thanks for the report @${reporterUsername}, I've removed the spam message.`;
   await sendPromptMessage(bot, msg.chat.id, notificationMessage);
 
+  await deleteMessageSafe(bot, msg.chat.id, msg.message_id);
+
   const reportInfo = `Reported message from ${targetUsername} deleted by me, report by @${reporterUsername}`;
 
   const moderationButtons = targetUserId
