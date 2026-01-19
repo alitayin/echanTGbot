@@ -53,5 +53,5 @@ module.exports = {
   CHRONIK_TIMEOUT_MS: parseInt(process.env.CHRONIK_TIMEOUT_MS || '8000'),
 
   // Auto-delete configuration for prompt/notification messages
-  AUTO_DELETE_PROMPT_MS: parseInt(process.env.AUTO_DELETE_PROMPT_MS || String(120 * 1000))
+  AUTO_DELETE_PROMPT_MS: parseInt(process.env.AUTO_DELETE_PROMPT_MS || String(30 * 1000))
 };

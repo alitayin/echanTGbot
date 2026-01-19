@@ -3,7 +3,6 @@ const {
   getBotIsAdmin,
   forwardOrCopyToLogGroup,
   deleteMessageSafe,
-  sendChatNotification,
   sendLogGroupReport,
 } = require('../../infrastructure/telegram/reportingActions.js');
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
@@ -30,13 +29,13 @@ function getTextContent(msg) {
 
 async function handleReportCommand(msg, bot) {
   if (!msg.reply_to_message) {
-    await sendChatNotification(bot, msg.chat.id, "Please reply to the message you want to report, then send /report.");
+    await sendPromptMessage(bot, msg.chat.id, "Please reply to the message you want to report, then send /report.");
     return;
   }
 
   const isBotAdmin = await getBotIsAdmin(bot, msg.chat.id);
   if (!isBotAdmin) {
-    await sendChatNotification(bot, msg.chat.id, "I need admin rights to delete messages. Please make me an admin first.");
+    await sendPromptMessage(bot, msg.chat.id, "I need admin rights to delete messages. Please make me an admin first.");
     return;
   }
 
