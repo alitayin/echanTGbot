@@ -547,6 +547,13 @@ async function processGroupMessage(msg, bot, ports) {
         return;
     }
 
+    // Treat contact shares from untrusted users as spam
+    if (!isFromChannel && msg?.contact) {
+        console.log('Untrusted user shared contact, deleting as spam');
+        await handleSpamDeletion(msg, bot, query);
+        return;
+    }
+
     // Check if message contains whitelisted keyword
     const whitelistedKeyword = await containsWhitelistKeyword(query);
     if (whitelistedKeyword) {
