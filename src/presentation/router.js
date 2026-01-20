@@ -189,7 +189,7 @@ function registerRoutes(bot) {
         }
         
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing report command ---');
@@ -197,7 +197,7 @@ function registerRoutes(bot) {
             await handleReportCommand(msg, bot);
         } catch (error) {
             console.error('Failed to process report:', error);
-            await sendPromptMessage(msg.chat.id, "You can try replying to spam messages and use the /report function.");
+            await sendPromptMessage(bot, msg.chat.id, "You can try replying to spam messages and use the /report function.");
         }
     });
 
@@ -209,14 +209,14 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing help command ---');
         const isAdmin = ALLOWED_USERS.includes(msg.from.username);
         const menuData = getHelpMenu('help_main', isAdmin);
         
-        await sendPromptMessage(msg.chat.id, menuData.text, {
+        await sendPromptMessage(bot, msg.chat.id, menuData.text, {
             parse_mode: 'HTML',
             reply_markup: {
                 inline_keyboard: menuData.keyboard
@@ -230,11 +230,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing add license command ---');
@@ -242,7 +242,7 @@ function registerRoutes(bot) {
             await handleAddLicense(msg, bot);
         } catch (error) {
             console.error('Failed to add license:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to add license. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to add license. Please try again.');
         }
     });
 
@@ -252,11 +252,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing remove license command ---');
@@ -264,7 +264,7 @@ function registerRoutes(bot) {
             await handleRemoveLicense(msg, bot);
         } catch (error) {
             console.error('Failed to remove license:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to remove license. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to remove license. Please try again.');
         }
     });
 
@@ -274,11 +274,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing list licenses command ---');
@@ -286,7 +286,7 @@ function registerRoutes(bot) {
             await handleListLicenses(msg, bot);
         } catch (error) {
             console.error('Failed to list licenses:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to list licenses. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to list licenses. Please try again.');
         }
     });
 
@@ -296,7 +296,7 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing user signup command ---');
@@ -304,7 +304,7 @@ function registerRoutes(bot) {
             await handleSignup(msg, bot);
         } catch (error) {
             console.error('Failed to process signup:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to register address. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to register address. Please try again.');
         }
     });
 
@@ -314,11 +314,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing get address command ---');
@@ -326,7 +326,7 @@ function registerRoutes(bot) {
             await handleGetAddress(msg, bot);
         } catch (error) {
             console.error('Failed to get address:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve address. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve address. Please try again.');
         }
     });
 
@@ -336,11 +336,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing list addresses command ---');
@@ -353,7 +353,7 @@ function registerRoutes(bot) {
             await handleListAddresses(msg, bot, page);
         } catch (error) {
             console.error('Failed to list addresses:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve addresses. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve addresses. Please try again.');
         }
     });
 
@@ -363,11 +363,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing send token command ---');
@@ -375,7 +375,7 @@ function registerRoutes(bot) {
             await handleSendCommand(msg, bot);
         } catch (error) {
             console.error('Failed to send tokens:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to send tokens. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to send tokens. Please try again.');
         }
     });
 
@@ -385,11 +385,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing export data command ---');
@@ -397,7 +397,7 @@ function registerRoutes(bot) {
             await handleExportData(msg, bot);
         } catch (error) {
             console.error('Failed to export data:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to export data. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to export data. Please try again.');
         }
     });
 
@@ -407,11 +407,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing import data command ---');
@@ -419,7 +419,7 @@ function registerRoutes(bot) {
             await handleImportData(msg, bot);
         } catch (error) {
             console.error('Failed to import data:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to import data. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to import data. Please try again.');
         }
     });
 
@@ -429,7 +429,7 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing whitelisting command ---');
@@ -437,7 +437,7 @@ function registerRoutes(bot) {
             await handleWhitelistingCommand(msg, bot);
         } catch (error) {
             console.error('Failed to process whitelisting:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to submit whitelist request. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to submit whitelist request. Please try again.');
         }
     });
 
@@ -447,11 +447,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing list whitelist command ---');
@@ -459,7 +459,7 @@ function registerRoutes(bot) {
             await handleListWhitelistCommand(msg, bot);
         } catch (error) {
             console.error('Failed to list whitelist:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve whitelist. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve whitelist. Please try again.');
         }
     });
 
@@ -469,11 +469,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing remove whitelist command ---');
@@ -481,7 +481,7 @@ function registerRoutes(bot) {
             await handleRemoveWhitelistCommand(msg, bot);
         } catch (error) {
             console.error('Failed to remove whitelist keyword:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to remove keyword. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to remove keyword. Please try again.');
         }
     });
 
@@ -491,11 +491,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing message save command ---');
@@ -503,7 +503,7 @@ function registerRoutes(bot) {
             await handleMessageCommand(msg, bot);
         } catch (error) {
             console.error('Failed to save message:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to save message. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to save message. Please try again.');
         }
     });
 
@@ -513,11 +513,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing show message command ---');
@@ -525,7 +525,7 @@ function registerRoutes(bot) {
             await handleShowMessageCommand(msg, bot);
         } catch (error) {
             console.error('Failed to show messages:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve messages. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve messages. Please try again.');
         }
     });
 
@@ -535,11 +535,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing delete message command ---');
@@ -547,7 +547,7 @@ function registerRoutes(bot) {
             await handleDeleteMessageCommand(msg, bot);
         } catch (error) {
             console.error('Failed to delete message:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to delete message. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to delete message. Please try again.');
         }
     });
 
@@ -557,11 +557,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing stop message command ---');
@@ -569,7 +569,7 @@ function registerRoutes(bot) {
             await handleStopMessageCommand(msg, bot);
         } catch (error) {
             console.error('Failed to stop message:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to stop message. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to stop message. Please try again.');
         }
     });
 
@@ -579,11 +579,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing list scheduled command ---');
@@ -591,7 +591,7 @@ function registerRoutes(bot) {
             await handleListScheduledCommand(msg, bot);
         } catch (error) {
             console.error('Failed to list scheduled messages:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve scheduled messages. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve scheduled messages. Please try again.');
         }
     });
 
@@ -605,11 +605,11 @@ function registerRoutes(bot) {
         const isEcashArmy = String(msg.chat.id) === ECASH_ARMY_GROUP_ID;
         
         if (!isAdmin && !isEcashArmy) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing mission command ---');
@@ -617,7 +617,7 @@ function registerRoutes(bot) {
             await handleMissionCommand(msg, bot);
         } catch (error) {
             console.error('Failed to create mission:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to create mission. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to create mission. Please try again.');
         }
     });
 
@@ -627,11 +627,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing show mission command ---');
@@ -639,7 +639,7 @@ function registerRoutes(bot) {
             await handleShowMissionCommand(msg, bot);
         } catch (error) {
             console.error('Failed to show missions:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to retrieve missions. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to retrieve missions. Please try again.');
         }
     });
 
@@ -649,11 +649,11 @@ function registerRoutes(bot) {
             return;
         }
         if (!ALLOWED_USERS.includes(msg.from.username)) {
-            await sendPromptMessage(msg.chat.id, '❌ This command is only available to administrators.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ This command is only available to administrators.');
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing delete mission command ---');
@@ -661,7 +661,7 @@ function registerRoutes(bot) {
             await handleDeleteMissionCommand(msg, bot);
         } catch (error) {
             console.error('Failed to delete mission:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to delete mission. Please try again.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to delete mission. Please try again.');
         }
     });
 
@@ -700,12 +700,12 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing price query command ---');
         try {
-            const loadingMessage = await sendPromptMessage(msg.chat.id, '📊 Getting latest price data...');
+            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '📊 Getting latest price data...');
             const priceDto = await handlePriceCommand();
             const priceMessage = renderPriceMessage(priceDto);
             await bot.editMessageText(priceMessage, {
@@ -714,7 +714,7 @@ function registerRoutes(bot) {
             });
         } catch (error) {
             console.error('Price query failed:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to get price data. Please try again later.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to get price data. Please try again later.');
         }
     });
 
@@ -731,14 +731,14 @@ function registerRoutes(bot) {
         try {
             const parts = text.split(/\s+/);
             if (parts.length < 2) {
-                await sendPromptMessage(msg.chat.id, 'Usage: /explorer <address> [page]');
+                await sendPromptMessage(bot, msg.chat.id, 'Usage: /explorer <address> [page]');
                 return;
             }
             const rawQuery = parts[1].trim();
             const userPageInput = parts[2] ? parseInt(parts[2], 10) : 1; // User input is 1-based
             const page = Number.isFinite(userPageInput) ? Math.max((userPageInput || 1) - 1, 0) : 0; // Internal 0-based
             const displayPage = page + 1; // Display still uses 1-based
-            const loadingMessage = await sendPromptMessage(msg.chat.id, `🔎 Fetching, page ${displayPage}...`);
+            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, `🔎 Fetching, page ${displayPage}...`);
             const result = await handleExplorerAddress(rawQuery, page);
             const { renderExplorerMessage } = require('./views/explorerView.js');
             const textResp = renderExplorerMessage(result, page);
@@ -750,10 +750,10 @@ function registerRoutes(bot) {
             });
         } catch (error) {
             if (error && error.name === 'InvalidAddressError') {
-                await sendPromptMessage(msg.chat.id, '❌ Invalid address. Please check and try again.');
+                await sendPromptMessage(bot, msg.chat.id, '❌ Invalid address. Please check and try again.');
             } else {
                 console.error('Explorer query failed:', error.message);
-                await sendPromptMessage(msg.chat.id, '❌ Failed to fetch explorer data. Please try again later.');
+                await sendPromptMessage(bot, msg.chat.id, '❌ Failed to fetch explorer data. Please try again later.');
             }
         }
     });
@@ -767,12 +767,12 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, FEATURE_DISABLED_MSG);
+            await sendPromptMessage(bot, msg.chat.id, FEATURE_DISABLED_MSG);
             return;
         }
         console.log('\n--- Processing avalanche query command ---');
         try {
-            const loadingMessage = await sendPromptMessage(msg.chat.id, '🗻 Getting latest Avalanche data...');
+            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '🗻 Getting latest Avalanche data...');
             const avalancheDto = await handleAvalancheCommand();
             const avalancheMessage = renderAvalancheMessage(avalancheDto);
             await bot.editMessageText(avalancheMessage, {
@@ -781,7 +781,7 @@ function registerRoutes(bot) {
             });
         } catch (error) {
             console.error('Avalanche query failed:', error);
-            await sendPromptMessage(msg.chat.id, '❌ Failed to get Avalanche data. Please try again later.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to get Avalanche data. Please try again later.');
         }
     });
 
@@ -795,13 +795,13 @@ function registerRoutes(bot) {
             return;
         }
         if (LIMITED_MODE) {
-            await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
         }
         console.log('\n--- Processing time command ---');
         
         const countryNames = text.split(/\s+/).slice(1);
-        const loadingMessage = await sendPromptMessage(msg.chat.id, '⏰ Getting time...');
+        const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '⏰ Getting time...');
         
         const executeTimeCommand = async () => {
             return Promise.race([
@@ -909,10 +909,10 @@ function registerRoutes(bot) {
             const lower = (msg.text || '').trim().toLowerCase();
             if (isPrivate) {
                 if (!lower.startsWith('/explorer')) {
-                    await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+                    await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
                 }
             } else {
-                await sendPromptMessage(msg.chat.id, pickDisabledMsg());
+                await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             }
             return;
         }

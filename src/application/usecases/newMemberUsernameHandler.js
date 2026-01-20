@@ -87,7 +87,7 @@ async function handleNewMemberSpamUsername(user, chatId, messageId, bot) {
         // Send notification to group
         const userIdentifier = user.username ? `@${user.username}` : `User (ID: ${user.id})`;
         const groupNotification = `⚠️ ${userIdentifier} has been removed for having a suspicious username.`;
-        await sendPromptMessage(chatId, groupNotification);
+        await sendPromptMessage(bot, chatId, groupNotification);
         
         // Send report to notification group
         const reportMessage = `🚨 Suspicious Username Detected (New Member)\n\n` +

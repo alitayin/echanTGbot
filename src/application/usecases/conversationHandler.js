@@ -67,8 +67,7 @@ async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_US
 
   if (BLOCKED_USERS && BLOCKED_USERS.includes(username)) {
     console.log(`User ${username} is blacklisted, rejecting request`);
-    await sendPromptMessage(
-      msg.chat.id,
+    await sendPromptMessage(bot, msg.chat.id,
       "Sorry, your account is restricted from using this feature. Please contact admin if you have questions.",
       { reply_to_message_id: msg.message_id }
     );
@@ -79,8 +78,7 @@ async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_US
   const check = limiter.checkAndConsume({ userId, username, bypass });
   if (!check.allowed) {
     if (check.reason === 'cooldown') {
-      await sendPromptMessage(
-        msg.chat.id,
+      await sendPromptMessage(bot, msg.chat.id,
         `I'm spacing out right now. will be back to u in ${check.secondsLeft} seconds.`
       );
       return;
@@ -90,8 +88,7 @@ async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_US
       const hoursLeft = Math.ceil(ms / (60 * 60 * 1000));
       const minutesLeft = Math.ceil(ms / (60 * 1000)) % 60;
       console.log(`User ${username} reached 24h request limit`);
-      await sendPromptMessage(
-        msg.chat.id,
+      await sendPromptMessage(bot, msg.chat.id,
         `You have reached the maximum number of requests (${limiterConfig.dailyLimit}) for 24 hours.\nPlease try again in approximately ${hoursLeft} hours and ${minutesLeft} minutes.`,
         { reply_to_message_id: msg.message_id }
       );
@@ -131,23 +128,20 @@ async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_US
         if ([400, 500, 502].includes(status) ||
             (status === 404 && error.response.data.message === 'Conversation Not Exists.')) {
           delete userConversationIds[userId];
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             "Starting a new conversation. Please try your message again.",
             { reply_to_message_id: msg.message_id }
           );
           bot.emit('send_message', msg.chat.id, "Starting a new conversation. Please try your message again.");
         } else {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             "An error occurred. Please try again.",
             { reply_to_message_id: msg.message_id }
           );
           bot.emit('send_message', msg.chat.id, "An error occurred. Please try again.");
         }
       } else {
-      await sendPromptMessage(
-          msg.chat.id,
+      await sendPromptMessage(bot, msg.chat.id,
           "Network error. Please try again later.",
           { reply_to_message_id: msg.message_id }
         );
@@ -163,8 +157,7 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
 
   if (BLOCKED_USERS && BLOCKED_USERS.includes(username)) {
     console.log(`User ${username} is blacklisted, rejecting photo request`);
-    await sendPromptMessage(
-      msg.chat.id,
+    await sendPromptMessage(bot, msg.chat.id,
       "Sorry, your account is restricted from using this feature. Please contact admin if you have questions.",
       { reply_to_message_id: msg.message_id }
     );
@@ -175,8 +168,7 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
   const check = limiter.checkAndConsume({ userId, username, bypass });
   if (!check.allowed) {
     if (check.reason === 'cooldown') {
-      await sendPromptMessage(
-        msg.chat.id,
+      await sendPromptMessage(bot, msg.chat.id,
         `I'm spacing out right now. will be back to u in ${check.secondsLeft} seconds.`
       );
       return;
@@ -186,8 +178,7 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
       const hoursLeft = Math.ceil(ms / (60 * 60 * 1000));
       const minutesLeft = Math.ceil(ms / (60 * 1000)) % 60;
       console.log(`User ${username} reached 24h photo request limit`);
-      await sendPromptMessage(
-        msg.chat.id,
+      await sendPromptMessage(bot, msg.chat.id,
         `You have reached the maximum number of requests (${limiterConfig.dailyLimit}) for 24 hours.\nPlease try again in approximately ${hoursLeft} hours and ${minutesLeft} minutes.`,
         { reply_to_message_id: msg.message_id }
       );
@@ -224,21 +215,18 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
         if ([400, 500, 502].includes(status) ||
             (status === 404 && error.response.data.message === 'Conversation Not Exists.')) {
           delete userConversationIds[userId];
-          await sendPromptMessage(
-            msg.chat.id,
+          await sendPromptMessage(bot, msg.chat.id,
             "Starting a new conversation. Please send your image again."
           );
           bot.emit('send_message', msg.chat.id, "Starting a new conversation. Please send your image again.");
         } else {
-          await sendPromptMessage(
-            msg.chat.id,
+          await sendPromptMessage(bot, msg.chat.id,
             "An error occurred while processing the image. Please try again."
           );
           bot.emit('send_message', msg.chat.id, "An error occurred while processing the image. Please try again.");
         }
       } else {
-        await sendPromptMessage(
-          msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
           "Network error while processing image. Please try again later."
         );
         bot.emit('send_message', msg.chat.id, "Network error while processing image. Please try again later.");

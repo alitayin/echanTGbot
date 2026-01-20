@@ -15,8 +15,7 @@ async function handleWhitelistingCommand(msg, bot) {
     const parts = msg.text.trim().split(/\s+/);
     
     if (parts.length < 2) {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             '❌ Usage: /whitelisting <keyword>\n\nExample: /whitelisting ecash'
         );
         return;
@@ -26,16 +25,14 @@ async function handleWhitelistingCommand(msg, bot) {
     const keyword = parts.slice(1).join(' ').trim();
     
     if (!keyword) {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             '❌ Please provide a keyword to whitelist.'
         );
         return;
     }
     
     // Send confirmation to the user
-    await sendPromptMessage(
-        msg.chat.id,
+    await sendPromptMessage(bot, msg.chat.id,
         `✅ Your whitelist request for keyword "${keyword}" has been submitted for review.`
     );
     
@@ -70,8 +67,7 @@ async function handleWhitelistingCommand(msg, bot) {
         // Gracefully report configuration/delivery issues to the requester
         const tgDescription = error?.response?.body?.description || error.message || 'Unknown error';
         console.error('Failed to forward whitelist request to notification group:', tgDescription);
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             `❌ Failed to submit whitelist request for review.\nReason: ${tgDescription}\n\n` +
             'Please contact an admin to verify NOTIFICATION_GROUP_ID and that the bot is in the notification group.'
         );
@@ -145,7 +141,7 @@ async function handleListWhitelistCommand(msg, bot) {
     const keywords = await getAllWhitelistKeywords();
     
     if (keywords.length === 0) {
-        await sendPromptMessage(msg.chat.id, '📋 No whitelisted keywords found.');
+        await sendPromptMessage(bot, msg.chat.id, '📋 No whitelisted keywords found.');
         return;
     }
     
@@ -156,7 +152,7 @@ async function handleListWhitelistCommand(msg, bot) {
         message += `   Added at: ${new Date(data.addedAt).toLocaleString()}\n\n`;
     });
     
-    await sendPromptMessage(msg.chat.id, message);
+    await sendPromptMessage(bot, msg.chat.id, message);
 }
 
 /**
@@ -171,8 +167,7 @@ async function handleRemoveWhitelistCommand(msg, bot) {
     const parts = msg.text.trim().split(/\s+/);
     
     if (parts.length < 2) {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             '❌ Usage: /removewhitelist <keyword>\n\nExample: /removewhitelist ecash'
         );
         return;
@@ -182,8 +177,7 @@ async function handleRemoveWhitelistCommand(msg, bot) {
     const keyword = parts.slice(1).join(' ').trim().toLowerCase();
     
     if (!keyword) {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             '❌ Please provide a keyword to remove from whitelist.'
         );
         return;
@@ -193,8 +187,7 @@ async function handleRemoveWhitelistCommand(msg, bot) {
     const success = await removeWhitelistKeyword(keyword);
     
     if (success) {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             `✅ Keyword "${keyword}" has been removed from the whitelist by @${adminUsername}.`
         );
         
@@ -207,8 +200,7 @@ async function handleRemoveWhitelistCommand(msg, bot) {
             `This keyword will no longer bypass spam detection.`
         );
     } else {
-        await sendPromptMessage(
-            msg.chat.id,
+        await sendPromptMessage(bot, msg.chat.id,
             `❌ Failed to remove keyword "${keyword}". It may not exist in the whitelist.`
         );
     }

@@ -25,7 +25,7 @@ const OORAH_TOKEN_ID = resolveTokenAlias('oorah');
 async function handleMissionCommand(msg, bot) {
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
     if (!isGroup) {
-        await sendPromptMessage(msg.chat.id, '❌ This command can only be used in groups.');
+        await sendPromptMessage(bot, msg.chat.id, '❌ This command can only be used in groups.');
         return;
     }
 
@@ -33,8 +33,7 @@ async function handleMissionCommand(msg, bot) {
     const description = text.replace(/^\/mission\s*/i, '').trim();
     
     if (!description) {
-        await sendPromptMessage(
-            msg.chat.id, 
+        await sendPromptMessage(bot, msg.chat.id, 
             '❌ Usage: /mission <description>\n\nExample:\n/mission Complete 10 transactions on eCash network'
         );
         return;
@@ -64,7 +63,7 @@ async function handleMissionCommand(msg, bot) {
         console.log(`Mission ${mission.id} created in chat ${msg.chat.id}`);
     } catch (error) {
         console.error('Failed to create mission:', error);
-        await sendPromptMessage(msg.chat.id, '❌ Failed to create mission. Please try again.');
+        await sendPromptMessage(bot, msg.chat.id, '❌ Failed to create mission. Please try again.');
     }
 }
 
@@ -108,8 +107,7 @@ async function handleMissionCompletion(msg, bot) {
         const alreadyCompleted = await hasUserCompletedMission(mission.id, userId);
         if (alreadyCompleted) {
             console.log(`⚠️ User @${username} already completed mission ${mission.id}`);
-            await sendPromptMessage(
-                msg.chat.id,
+            await sendPromptMessage(bot, msg.chat.id,
                 `⚠️ @${username}, you have already completed mission ${mission.id}. Each mission can only be completed once per user.`,
                 { reply_to_message_id: msg.message_id }
             );
@@ -118,8 +116,7 @@ async function handleMissionCompletion(msg, bot) {
 
         const addressData = await getUserAddress(userId);
         if (!addressData) {
-            await sendPromptMessage(
-                msg.chat.id,
+            await sendPromptMessage(bot, msg.chat.id,
                 `❌ @${username}, you need to register first!\n\nPlease use /signup <address> to register your eCash address before completing missions.`,
                 { reply_to_message_id: msg.message_id }
             );
