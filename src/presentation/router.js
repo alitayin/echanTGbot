@@ -706,13 +706,9 @@ function registerRoutes(bot) {
         }
         console.log('\n--- Processing price query command ---');
         try {
-            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '📊 Getting latest price data...');
             const priceDto = await handlePriceCommand();
             const priceMessage = renderPriceMessage(priceDto);
-            await bot.editMessageText(priceMessage, {
-                chat_id: msg.chat.id,
-                message_id: loadingMessage.message_id
-            });
+            await sendPromptMessage(bot, msg.chat.id, priceMessage);
         } catch (error) {
             console.error('Price query failed:', error);
             await sendPromptMessage(bot, msg.chat.id, '❌ Failed to get price data. Please try again later.');
@@ -773,13 +769,9 @@ function registerRoutes(bot) {
         }
         console.log('\n--- Processing avalanche query command ---');
         try {
-            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '🗻 Getting latest Avalanche data...');
             const avalancheDto = await handleAvalancheCommand();
             const avalancheMessage = renderAvalancheMessage(avalancheDto);
-            await bot.editMessageText(avalancheMessage, {
-                chat_id: msg.chat.id,
-                message_id: loadingMessage.message_id
-            });
+            await sendPromptMessage(bot, msg.chat.id, avalancheMessage);
         } catch (error) {
             console.error('Avalanche query failed:', error);
             await sendPromptMessage(bot, msg.chat.id, '❌ Failed to get Avalanche data. Please try again later.');
