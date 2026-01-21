@@ -9,6 +9,7 @@ const helpMenuData = {
                 [{ text: '🔍 /explorer - Address Query', callback_data: 'cmd_explorer' }],
                 [{ text: '⏰ /time - World Time', callback_data: 'cmd_time' }],
                 [{ text: '🌐 /translate - Translation', callback_data: 'cmd_translate' }],
+                [{ text: '🧰 /chronik - Chronik MCP', callback_data: 'cmd_chronik' }],
                 [{ text: '✅ /whitelisting - Keyword Whitelist', callback_data: 'cmd_whitelisting' }],
                 [{ text: '📖 Learn to use /help with LLM', callback_data: 'cmd_learnhelp' }]
             ]
@@ -105,6 +106,10 @@ const helpMenuData = {
         },
         cmd_time: {
             text: '⏰ <b>/time</b>\n\nCheck current time around the world.\n\n<b>Usage:</b>\n<code>/time [location/UTC offset]</code>\n\n<b>Examples:</b>\n<code>/time</code> - Current time\n<code>/time shanghai utc+8</code> - Specify timezone\n\n<b>Note:</b>\nSupports city names and UTC offsets',
+            keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
+        },
+        cmd_chronik: {
+            text: '🧰 <b>/chronik</b>\n\nCall eCash MCP (Chronik) via natural language.\n\n<b>Usage:</b>\n<code>/chronik get the latest block hash</code>\n<code>/mcp get the coinbase string from block &lt;hash&gt;</code>\n\n<b>Note:</b>\nReturns raw JSON from the MCP tool',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_whitelisting: {

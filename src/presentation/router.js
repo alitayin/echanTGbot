@@ -67,6 +67,7 @@ const {
     handleDeleteMissionCommand
 } = require('../application/usecases/missionHandler.js');
 const { handleSpamModerationCallback } = require('../application/usecases/spamModerationHandler.js');
+const { handleChronikCommand } = require('../application/usecases/chronikHandler.js');
 
 const LIMITED_MODE = false; 
 const FEATURE_DISABLED_MSGS = [
@@ -839,6 +840,29 @@ function registerRoutes(bot) {
         });
     });
 
+    // Listener 6.3: chronik MCP
+    bot.on('message', async (msg) => {
+        if (!msg.text) return;
+        const text = msg.text.trim();
+        const lower = text.toLowerCase();
+        const isChronikCommand = lower.startsWith('/chronik') || lower.startsWith(`/chronik@${BOT_USERNAME.toLowerCase()}`) ||
+            lower.startsWith('/mcp') || lower.startsWith(`/mcp@${BOT_USERNAME.toLowerCase()}`);
+        if (!isChronikCommand) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing chronik MCP command ---');
+        try {
+            await handleChronikCommand(msg, bot, ports);
+        } catch (error) {
+            console.error('Chronik MCP command failed:', error);
+            await sendPromptMessage(bot, msg.chat.id, '❌ MCP request failed. Please try again later.');
+        }
+    });
+
     // Listener 6.6: stored message commands (custom /commandname [time]) (all users)
     bot.on('message', async (msg) => {
         if (!msg.text) return;
@@ -868,7 +892,7 @@ function registerRoutes(bot) {
             'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
             'removewhitelist', 'message', 'showmessage', 'deletemessage',
             'stopmessage', 'listscheduled', 'mission', 'showmission', 'deletemission',
-            'start', 'help', 'price', 'ava', 'explorer', 'time', 'translate'
+            'start', 'help', 'price', 'ava', 'explorer', 'time', 'translate', 'chronik', 'mcp'
         ];
         
         if (knownCommands.includes(commandName.toLowerCase())) {
@@ -948,7 +972,11 @@ function registerRoutes(bot) {
             msg.text?.trim().toLowerCase().startsWith('/explorer') ||
             msg.text?.trim().toLowerCase().startsWith(`/explorer@${BOT_USERNAME.toLowerCase()}`) ||
             msg.text?.trim().toLowerCase().startsWith('/time') ||
-            msg.text?.trim().toLowerCase().startsWith(`/time@${BOT_USERNAME.toLowerCase()}`)) {
+            msg.text?.trim().toLowerCase().startsWith(`/time@${BOT_USERNAME.toLowerCase()}`) ||
+            msg.text?.trim().toLowerCase().startsWith('/chronik') ||
+            msg.text?.trim().toLowerCase().startsWith(`/chronik@${BOT_USERNAME.toLowerCase()}`) ||
+            msg.text?.trim().toLowerCase().startsWith('/mcp') ||
+            msg.text?.trim().toLowerCase().startsWith(`/mcp@${BOT_USERNAME.toLowerCase()}`)) {
             return;
         }
 
