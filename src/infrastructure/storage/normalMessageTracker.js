@@ -237,21 +237,14 @@ async function importTrustedRecords(records) {
 
 /**
  * Periodic cleanup to avoid unbounded memory growth.
- * Records that have not been updated for more than 24 hours are removed.
+ * Only remove invalid records; do not expire trusted status by time.
  */
-const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; 
-const RECORD_TTL_MS = 24 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 setInterval(async () => {
     await ensureLoaded();
-    const now = Date.now();
     for (const [key, record] of normalMessageTracker.entries()) {
         if (!record || typeof record.lastUpdated !== 'number') {
-            normalMessageTracker.delete(key);
-            deleteRecord(key);
-            continue;
-        }
-        if (now - record.lastUpdated > RECORD_TTL_MS) {
             normalMessageTracker.delete(key);
             deleteRecord(key);
         }
