@@ -143,6 +143,33 @@ async function resetNormalMessageStreakInGroup(chatId, userId) {
 }
 
 /**
+ * Mark a user as trusted in a specific group (manual override).
+ * @param {number|string} chatId
+ * @param {number|string} userId
+ * @param {string} reason
+ * @returns {Promise<boolean>}
+ */
+async function markUserTrustedInGroup(chatId, userId, reason = 'manual') {
+    await ensureLoaded();
+    if (chatId == null || userId == null) return false;
+    const key = makeKey(chatId, userId);
+    const now = Date.now();
+    const existing = normalMessageTracker.get(key);
+    const streakValue = existing && Number.isFinite(Number(existing.streak))
+        ? Number(existing.streak)
+        : 0;
+    const updated = {
+        streak: Math.max(streakValue, NORMAL_STREAK_THRESHOLD),
+        trusted: true,
+        lastUpdated: now,
+    };
+    normalMessageTracker.set(key, updated);
+    persistRecord(key, updated);
+    console.log(`User ${userId} in chat ${chatId} marked as trusted (reason: ${reason})`);
+    return true;
+}
+
+/**
  * Export all trusted tracker records for backup.
  * @returns {Promise<Array<{chatId: string, userId: string, streak: number, trusted: boolean, lastUpdated: number}>>}
  */
@@ -236,6 +263,7 @@ module.exports = {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
     resetNormalMessageStreakInGroup,
+    markUserTrustedInGroup,
     exportTrustedRecords,
     importTrustedRecords,
 };

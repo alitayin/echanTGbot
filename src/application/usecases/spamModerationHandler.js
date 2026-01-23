@@ -1,4 +1,5 @@
 const { banUser, unbanUser } = require('../../infrastructure/telegram/adminActions.js');
+const { markUserTrustedInGroup } = require('../../infrastructure/storage/normalMessageTracker.js');
 
 function buildSpamModerationButtons({ chatId, userId, showBan = false, showUnban = false }) {
   const buttons = [];
@@ -54,6 +55,7 @@ async function handleSpamModerationCallback(query, bot) {
     let success = false;
     let successText = '';
     let failText = '';
+    let trustedMarked = false;
 
     if (action === 'ban') {
       success = await banUser(bot, chatId, userId);
@@ -61,7 +63,10 @@ async function handleSpamModerationCallback(query, bot) {
       failText = '❌ Failed to ban user (check bot admin rights)';
     } else if (action === 'unban') {
       success = await unbanUser(bot, chatId, userId);
-      successText = '✅ User unbanned';
+      if (success) {
+        trustedMarked = await markUserTrustedInGroup(chatId, userId, 'manual_unban');
+      }
+      successText = trustedMarked ? '✅ User unbanned and trusted' : '✅ User unbanned';
       failText = '❌ Failed to unban user (check bot admin rights)';
     } else {
       await bot.answerCallbackQuery(query.id, {
@@ -91,7 +96,7 @@ async function handleSpamModerationCallback(query, bot) {
       const statusLine =
         action === 'ban'
           ? `Action: banned by ${actor}`
-          : `Action: unbanned by ${actor}`;
+          : `Action: unbanned by ${actor}${trustedMarked ? ' (marked as trusted)' : ''}`;
 
       const existingText = query.message.text;
       const alreadyNoted = existingText.includes(statusLine);
