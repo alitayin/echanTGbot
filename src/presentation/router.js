@@ -708,7 +708,7 @@ function registerRoutes(bot) {
         try {
             const priceDto = await handlePriceCommand();
             const priceMessage = renderPriceMessage(priceDto);
-            await sendPromptMessage(bot, msg.chat.id, priceMessage);
+            await sendPromptMessage(bot, msg.chat.id, priceMessage, { disableAutoDelete: true });
         } catch (error) {
             console.error('Price query failed:', error);
             await sendPromptMessage(bot, msg.chat.id, '❌ Failed to get price data. Please try again later.');
