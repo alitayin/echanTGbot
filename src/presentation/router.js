@@ -68,6 +68,7 @@ const {
 } = require('../application/usecases/missionHandler.js');
 const { handleSpamModerationCallback } = require('../application/usecases/spamModerationHandler.js');
 const { handleChronikCommand } = require('../application/usecases/chronikHandler.js');
+const { handleFloodShieldJoins } = require('../application/usecases/floodShieldHandler.js');
 
 const LIMITED_MODE = false; 
 const FEATURE_DISABLED_MSGS = [
@@ -1079,6 +1080,11 @@ function registerRoutes(bot) {
                     return;
                 }
                 
+                const shieldHandled = await handleFloodShieldJoins(bot, msg.chat.id, msg.new_chat_members);
+                if (shieldHandled) {
+                    return;
+                }
+
                 // Check each new member
                 for (const newMember of msg.new_chat_members) {
                     try {
