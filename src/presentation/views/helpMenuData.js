@@ -93,7 +93,7 @@ const helpMenuData = {
     },
     commands: {
         cmd_signup: {
-            text: '📝 <b>/signup</b>\n\nRegister your eCash address to receive token rewards.\n\n<b>Usage:</b>\n<code>/signup ecash:qp...</code>\n\n<b>Note:</b>\nProvide a valid eCash address for registration',
+            text: '📝 <b>/signup</b>\n\nRegister your eCash address and get a deposit address.\n\n<b>Usage:</b>\n<code>/signup ecash:qp...</code>\n\n<b>Note:</b>\nA deposit address is always assigned by the bot after you register your address.',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_price: {

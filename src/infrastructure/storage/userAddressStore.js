@@ -19,14 +19,19 @@ const db = new Level(dbPath, { valueEncoding: 'json' });
  * @param {string} username - Telegram username (optional, for logging)
  * @returns {Promise<boolean>}
  */
-async function saveUserAddress(userId, address, username = null) {
+async function saveUserAddress(userId, address, username = null, options = {}) {
     try {
         const key = `user:${userId}`;
+        const existing = await getUserAddress(userId);
         const data = {
             userId: String(userId),
-            address,
+            address: address ?? existing?.address ?? null,
+            depositAddress: options.depositAddress ?? existing?.depositAddress ?? null,
             username,
-            createdAt: new Date().toISOString(),
+            addressIndex: options.addressIndex ?? existing?.addressIndex ?? null,
+            depositIndex: options.depositIndex ?? existing?.depositIndex ?? null,
+            addressSource: options.addressSource ?? existing?.addressSource ?? 'manual',
+            createdAt: existing?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
         await db.put(key, data);
@@ -91,6 +96,31 @@ async function deleteUserAddress(userId) {
         console.error('Failed to delete user address:', error);
         return false;
     }
+}
+
+/**
+ * Reserve the next available receive index for HD wallet address derivation
+ * @returns {Promise<number>} - Reserved index
+ */
+async function reserveNextReceiveIndex() {
+    const key = 'meta:nextReceiveIndex';
+    let current = 0;
+
+    try {
+        const stored = await db.get(key);
+        const parsed = Number(stored);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            current = parsed;
+        }
+    } catch (error) {
+        if (error.code !== 'LEVEL_NOT_FOUND') {
+            console.error('Failed to load address index counter:', error);
+            throw error;
+        }
+    }
+
+    await db.put(key, current + 1);
+    return current;
 }
 
 /**
@@ -162,8 +192,12 @@ async function importAllData(jsonData) {
                 const key = `user:${user.userId}`;
                 const data = {
                     userId: String(user.userId),
-                    address: user.address,
+                    address: user.address ?? null,
+                    depositAddress: user.depositAddress ?? null,
                     username: user.username || null,
+                    addressIndex: Number.isFinite(user.addressIndex) ? user.addressIndex : null,
+                    depositIndex: Number.isFinite(user.depositIndex) ? user.depositIndex : null,
+                    addressSource: user.addressSource || null,
                     createdAt: user.createdAt || new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -276,6 +310,7 @@ module.exports = {
     getUserAddress,
     getAllUsers,
     deleteUserAddress,
+    reserveNextReceiveIndex,
     exportAllData,
     importAllData,
     closeDB

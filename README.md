@@ -10,7 +10,7 @@ eChan Telegram bot for group management and data queries.
 - Avalanche: `/ava` returns the latest network summary.
 - Explorer: `/explorer <address> [page]` to query address info by page.
 - Report: `/report` (reporters only).
-- User Registration: `/signup <address>` to register eCash address.
+- User Registration: `/signup <address>` to register your address and get a deposit address.
 - Token Sending: `/send <amount>` for XEC or `/send <tokenId|alias> <amount>` for SLP/ALP tokens (admin only, reply to user message, supports aliases like `oorah`, auto-detects token type).
 - Admin Commands: `/addlicense`, `/removelicense`, `/listlicenses`, `/getaddress`, `/listaddresses`.
 

@@ -1,6 +1,6 @@
 {
   "name": "xecbot",
-  "version": "2.7.9",
+  "version": "2.7.10",
   "description": "Layered Telegram bot for eCash (XEC) with modular architecture",
   "main": "src/presentation/index.js",
   "scripts": {
@@ -17,6 +17,7 @@
     "chronik-client": "^3.4.0",
     "crypto": "^1.0.1",
     "dotenv": "^16.4.7",
+    "ecash-wallet": "^4.0.0",
     "ecash-quicksend": "^1.0.7",
     "ecashaddrjs": "^2.0.0",
     "form-data": "^4.0.4",

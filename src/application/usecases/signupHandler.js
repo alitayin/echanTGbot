@@ -1,39 +1,84 @@
 const { ensureAddressWithFallback, InvalidAddressError } = require('../../infrastructure/blockchain/addressUtils.js');
-const { saveUserAddress, getUserAddress } = require('../../infrastructure/storage/userAddressStore.js');
+const { saveUserAddress, getUserAddress, getAllUsers, reserveNextReceiveIndex } = require('../../infrastructure/storage/userAddressStore.js');
+const { getReceiveAddressAtIndex, isMnemonicConfigured } = require('../../infrastructure/blockchain/userAddressAllocator.js');
 const { escapeMarkdown } = require('../../domain/formatting/markdown.js');
 const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
 async function handleSignup(msg, bot) {
     const parts = msg.text.trim().split(/\s+/);
     
-    if (parts.length < 2) {
+    const rawAddress = parts[1] ? parts[1].trim() : null;
+    if (!rawAddress) {
         await sendPromptMessage(bot, msg.chat.id, 
             '❌ Usage: /signup <ecash_address>\n\nExample:\n/signup ecash:qz2708636snqhsxu8wnlka78h6fdp77ar59jrf5035'
         );
         return;
     }
-
-    const rawAddress = parts[1].trim();
     const userId = msg.from.id;
     const username = msg.from.username || msg.from.first_name || 'unknown';
 
     try {
-        const validAddress = ensureAddressWithFallback(rawAddress);
-        
         const existingData = await getUserAddress(userId);
-        
-        const success = await saveUserAddress(userId, validAddress, username);
+
+        // Backfill deposit addresses for users missing them
+        try {
+            const allUsers = await getAllUsers();
+            for (const user of allUsers) {
+                if (!user?.userId || user.depositAddress) {
+                    continue;
+                }
+
+                const depositIndex = await reserveNextReceiveIndex();
+                const depositAddress = getReceiveAddressAtIndex(depositIndex);
+
+                await saveUserAddress(user.userId, user.address ?? null, user.username ?? null, {
+                    depositAddress,
+                    depositIndex,
+                    addressSource: user.addressSource ?? 'manual',
+                    addressIndex: user.addressIndex ?? null
+                });
+
+                console.log(
+                    `Backfilled deposit address for user ${user.userId}: ${depositAddress} (index ${depositIndex})`
+                );
+            }
+        } catch (backfillError) {
+            console.error('Failed to backfill deposit addresses:', backfillError);
+        }
+
+        const validAddress = ensureAddressWithFallback(rawAddress);
+
+        let depositAddress = existingData?.depositAddress ?? null;
+        let depositIndex = existingData?.depositIndex ?? null;
+        if (!depositAddress) {
+            if (!isMnemonicConfigured()) {
+                await sendPromptMessage(bot, msg.chat.id, 
+                    '❌ Bot wallet is not configured yet. Please contact an administrator.'
+                );
+                return;
+            }
+
+            depositIndex = await reserveNextReceiveIndex();
+            depositAddress = getReceiveAddressAtIndex(depositIndex);
+        }
+
+        const success = await saveUserAddress(userId, validAddress, username, {
+            addressSource: 'manual',
+            addressIndex: existingData?.addressIndex ?? null,
+            depositAddress,
+            depositIndex
+        });
         
         if (success) {
             if (existingData) {
                 await sendPromptMessage(bot, msg.chat.id, 
-                    `✅ Your eCash address has been updated!\n\n📍 Address: \`${validAddress}\``,
+                    `✅ Your eCash address has been updated!\n\n📍 Address: \`${validAddress}\`\n📦 Deposit: \`${depositAddress}\``,
                     { parse_mode: 'Markdown' }
                 );
                 console.log(`Address updated for @${username} (${userId}): ${validAddress}`);
             } else {
                 await sendPromptMessage(bot, msg.chat.id, 
-                    `✅ Your eCash address has been registered successfully!\n\n📍 Address: \`${validAddress}\``,
+                    `✅ Your eCash address has been registered successfully!\n\n📍 Address: \`${validAddress}\`\n📦 Deposit: \`${depositAddress}\``,
                     { parse_mode: 'Markdown' }
                 );
                 console.log(`New address registered for @${username} (${userId}): ${validAddress}`);
@@ -82,9 +127,17 @@ async function handleGetAddress(msg, bot) {
             return;
         }
 
+        const depositLine = userData.depositAddress
+            ? `📦 Deposit: \`${userData.depositAddress}\`\n`
+            : '';
+        const addressLine = userData.address
+            ? `📍 Address: \`${userData.address}\`\n`
+            : '';
+
         await sendPromptMessage(bot, msg.chat.id,
             `📋 Address for @${escapeMarkdown(userData.username)}:\n\n` +
-            `📍 Address: \`${userData.address}\`\n` +
+            addressLine +
+            depositLine +
             `👤 User ID: \`${userData.userId}\`\n` +
             `📅 Registered: ${new Date(userData.createdAt).toLocaleString()}\n` +
             `🔄 Last updated: ${new Date(userData.updatedAt).toLocaleString()}`,
