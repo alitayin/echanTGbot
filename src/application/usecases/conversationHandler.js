@@ -2,22 +2,21 @@ const {
   TELEGRAM_TOKEN,
   GLOBAL_CONCURRENCY,
   REQUEST_INTERVAL_MS,
-  DAILY_LIMIT,
-  DAILY_WINDOW_MS,
 } = require('../../../config/config.js');
 const { createRateLimiter } = require('../services/rateLimiter.js');
 const { getPhotoUrl } = require('../../infrastructure/telegram/mediaHelper.js');
 const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
+const { ensureUserRecord, updateUserBalance } = require('../../infrastructure/storage/userAddressStore.js');
 
 const userConversationIds = {};
 
 const limiter = createRateLimiter({
   concurrency: GLOBAL_CONCURRENCY,
   requestIntervalMs: REQUEST_INTERVAL_MS,
-  dailyLimit: DAILY_LIMIT,
-  dailyWindowMs: DAILY_WINDOW_MS,
+  dailyLimit: 1,
+  dailyWindowMs: 1,
 });
-const limiterConfig = limiter.getConfig();
+const POINTS_PER_DM = 10;
 
 function escapeMarkdownV2(text) {
   if (text == null) return '';
@@ -61,6 +60,46 @@ async function sendLongMessage(bot, chatId, text, baseOptions = {}, onChunkSent)
   }
 }
 
+async function consumePrivateBalance(msg, bot, ALLOWED_USERS) {
+  const isPrivate = msg.chat.type === "private";
+  if (!isPrivate) {
+    return { allowed: true };
+  }
+
+  const username = msg.from.username || msg.from.first_name || 'unknown';
+  if (ALLOWED_USERS.includes(username)) {
+    return { allowed: true, isAdmin: true };
+  }
+
+  try {
+    const userRecord = await ensureUserRecord(msg.from.id, username);
+    const balance = Number.isFinite(userRecord?.balance) ? userRecord.balance : 0;
+    if (balance < POINTS_PER_DM) {
+      const depositAddress = userRecord?.depositAddress;
+      const rechargeNote = depositAddress ? `\n\nDeposit address: \`${depositAddress}\`` : '';
+      await sendPromptMessage(
+        bot,
+        msg.chat.id,
+        `❌ Your balance is ${balance}. Please recharge to continue.${rechargeNote}`,
+        { parse_mode: 'Markdown', reply_to_message_id: msg.message_id }
+      );
+      return { allowed: false, balance };
+    }
+
+    const updated = await updateUserBalance(msg.from.id, username, balance - POINTS_PER_DM);
+    return { allowed: true, balance: updated.balance };
+  } catch (error) {
+    console.error('Failed to consume balance:', error);
+    await sendPromptMessage(
+      bot,
+      msg.chat.id,
+      '❌ Unable to verify your balance right now. Please try again later.',
+      { reply_to_message_id: msg.message_id }
+    );
+    return { allowed: false };
+  }
+}
+
 async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_USERS, ports) {
   const userId = msg.from.id;
   const username = msg.from.username;
@@ -74,26 +113,8 @@ async function handleRequestIfAllowed(msg, query, bot, ALLOWED_USERS, BLOCKED_US
     return;
   }
 
-  const bypass = ALLOWED_USERS.includes(username);
-  const check = limiter.checkAndConsume({ userId, username, bypass });
-  if (!check.allowed) {
-    if (check.reason === 'cooldown') {
-      await sendPromptMessage(bot, msg.chat.id,
-        `I'm spacing out right now. will be back to u in ${check.secondsLeft} seconds.`
-      );
-      return;
-    }
-    if (check.reason === 'quota') {
-      const ms = check.msUntilReset || 0;
-      const hoursLeft = Math.ceil(ms / (60 * 60 * 1000));
-      const minutesLeft = Math.ceil(ms / (60 * 1000)) % 60;
-      console.log(`User ${username} reached 24h request limit`);
-      await sendPromptMessage(bot, msg.chat.id,
-        `You have reached the maximum number of requests (${limiterConfig.dailyLimit}) for 24 hours.\nPlease try again in approximately ${hoursLeft} hours and ${minutesLeft} minutes.`,
-        { reply_to_message_id: msg.message_id }
-      );
-      return;
-    }
+  const balanceCheck = await consumePrivateBalance(msg, bot, ALLOWED_USERS);
+  if (!balanceCheck.allowed) {
     return;
   }
 
@@ -164,26 +185,8 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
     return;
   }
 
-  const bypass = ALLOWED_USERS.includes(username);
-  const check = limiter.checkAndConsume({ userId, username, bypass });
-  if (!check.allowed) {
-    if (check.reason === 'cooldown') {
-      await sendPromptMessage(bot, msg.chat.id,
-        `I'm spacing out right now. will be back to u in ${check.secondsLeft} seconds.`
-      );
-      return;
-    }
-    if (check.reason === 'quota') {
-      const ms = check.msUntilReset || 0;
-      const hoursLeft = Math.ceil(ms / (60 * 60 * 1000));
-      const minutesLeft = Math.ceil(ms / (60 * 1000)) % 60;
-      console.log(`User ${username} reached 24h photo request limit`);
-      await sendPromptMessage(bot, msg.chat.id,
-        `You have reached the maximum number of requests (${limiterConfig.dailyLimit}) for 24 hours.\nPlease try again in approximately ${hoursLeft} hours and ${minutesLeft} minutes.`,
-        { reply_to_message_id: msg.message_id }
-      );
-      return;
-    }
+  const balanceCheck = await consumePrivateBalance(msg, bot, ALLOWED_USERS);
+  if (!balanceCheck.allowed) {
     return;
   }
 

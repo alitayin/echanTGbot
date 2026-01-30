@@ -11,6 +11,7 @@ const { exportTrustedRecords, importTrustedRecords } = require('./normalMessageT
 // Initialize levelDB
 const dbPath = path.join(__dirname, '../../../data/userAddresses');
 const db = new Level(dbPath, { valueEncoding: 'json' });
+const DEFAULT_BALANCE = 20;
 
 /**
  * Save user's eCash address
@@ -31,6 +32,9 @@ async function saveUserAddress(userId, address, username = null, options = {}) {
             addressIndex: options.addressIndex ?? existing?.addressIndex ?? null,
             depositIndex: options.depositIndex ?? existing?.depositIndex ?? null,
             addressSource: options.addressSource ?? existing?.addressSource ?? 'manual',
+            balance: Number.isFinite(options.balance)
+                ? options.balance
+                : (Number.isFinite(existing?.balance) ? existing.balance : DEFAULT_BALANCE),
             createdAt: existing?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
@@ -79,6 +83,41 @@ async function getAllUsers() {
         console.error('Failed to get all users:', error);
         return [];
     }
+}
+
+async function ensureUserRecord(userId, username = null) {
+    const existing = await getUserAddress(userId);
+    if (!existing) {
+        await saveUserAddress(userId, null, username, { balance: DEFAULT_BALANCE });
+        return getUserAddress(userId);
+    }
+
+    const normalizedBalance = Number.isFinite(existing.balance) ? existing.balance : DEFAULT_BALANCE;
+    if (normalizedBalance !== existing.balance) {
+        await saveUserAddress(userId, existing.address ?? null, existing.username ?? username ?? null, {
+            depositAddress: existing.depositAddress ?? null,
+            addressIndex: existing.addressIndex ?? null,
+            depositIndex: existing.depositIndex ?? null,
+            addressSource: existing.addressSource ?? 'manual',
+            balance: normalizedBalance
+        });
+        return { ...existing, balance: normalizedBalance };
+    }
+
+    return existing;
+}
+
+async function updateUserBalance(userId, username, newBalance) {
+    const existing = await ensureUserRecord(userId, username);
+    const safeBalance = Number.isFinite(newBalance) ? newBalance : DEFAULT_BALANCE;
+    await saveUserAddress(userId, existing?.address ?? null, existing?.username ?? username ?? null, {
+        depositAddress: existing?.depositAddress ?? null,
+        addressIndex: existing?.addressIndex ?? null,
+        depositIndex: existing?.depositIndex ?? null,
+        addressSource: existing?.addressSource ?? 'manual',
+        balance: safeBalance
+    });
+    return { ...existing, balance: safeBalance };
 }
 
 /**
@@ -137,7 +176,7 @@ async function exportAllData() {
         ]);
 
         const exportData = {
-            version: '1.2',
+            version: '1.3',
             exportDate: new Date().toISOString(),
             totalUsers: users.length,
             totalMessages: messages.length,
@@ -198,6 +237,7 @@ async function importAllData(jsonData) {
                     addressIndex: Number.isFinite(user.addressIndex) ? user.addressIndex : null,
                     depositIndex: Number.isFinite(user.depositIndex) ? user.depositIndex : null,
                     addressSource: user.addressSource || null,
+                    balance: Number.isFinite(user.balance) ? user.balance : DEFAULT_BALANCE,
                     createdAt: user.createdAt || new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -309,6 +349,8 @@ module.exports = {
     saveUserAddress,
     getUserAddress,
     getAllUsers,
+    ensureUserRecord,
+    updateUserBalance,
     deleteUserAddress,
     reserveNextReceiveIndex,
     exportAllData,
