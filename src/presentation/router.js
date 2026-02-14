@@ -757,12 +757,12 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 5.1: my wallet (registered user address + DB balance)
+    // Listener 5.1: wallet (registered user address + DB balance)
     bot.on('message', async (msg) => {
         if (!msg.text) return;
         const text = msg.text.trim().toLowerCase();
-        const isMyWalletCommand = text === '/mywallet' || text === `/mywallet@${BOT_USERNAME.toLowerCase()}`;
-        if (!isMyWalletCommand) {
+        const isWalletCommand = text === '/wallet' || text === `/wallet@${BOT_USERNAME.toLowerCase()}`;
+        if (!isWalletCommand) {
             return;
         }
         if (LIMITED_MODE) {
@@ -927,7 +927,7 @@ function registerRoutes(bot) {
             'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
             'removewhitelist', 'message', 'showmessage', 'deletemessage',
             'stopmessage', 'listscheduled', 'mission', 'showmission', 'deletemission',
-            'start', 'help', 'price', 'ava', 'explorer', 'mywallet', 'time', 'translate', 'chronik', 'mcp'
+            'start', 'help', 'price', 'ava', 'explorer', 'wallet', 'time', 'translate', 'chronik', 'mcp'
         ];
         
         if (knownCommands.includes(commandName.toLowerCase())) {
@@ -1006,8 +1006,8 @@ function registerRoutes(bot) {
             msg.text?.trim().toLowerCase() === `/ava@${BOT_USERNAME.toLowerCase()}` ||
             msg.text?.trim().toLowerCase().startsWith('/explorer') ||
             msg.text?.trim().toLowerCase().startsWith(`/explorer@${BOT_USERNAME.toLowerCase()}`) ||
-            msg.text?.trim().toLowerCase() === "/mywallet" ||
-            msg.text?.trim().toLowerCase() === `/mywallet@${BOT_USERNAME.toLowerCase()}` ||
+            msg.text?.trim().toLowerCase() === "/wallet" ||
+            msg.text?.trim().toLowerCase() === `/wallet@${BOT_USERNAME.toLowerCase()}` ||
             msg.text?.trim().toLowerCase().startsWith('/time') ||
             msg.text?.trim().toLowerCase().startsWith(`/time@${BOT_USERNAME.toLowerCase()}`) ||
             msg.text?.trim().toLowerCase().startsWith('/chronik') ||
