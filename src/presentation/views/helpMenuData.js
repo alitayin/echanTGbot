@@ -5,6 +5,7 @@ const helpMenuData = {
             text: '🤖 <b>alitayinGPTbot</b>\n\nWelcome! Click on a command to see details:',
             keyboard: [
                 [{ text: '📝 /signup - Register Address', callback_data: 'cmd_signup' }],
+                [{ text: '👛 /mywallet - My Wallet', callback_data: 'cmd_mywallet' }],
                 [{ text: '💵 /price - Price Query', callback_data: 'cmd_price' }],
                 [{ text: '🔍 /explorer - Address Query', callback_data: 'cmd_explorer' }],
                 [{ text: '⏰ /time - World Time', callback_data: 'cmd_time' }],
@@ -94,6 +95,10 @@ const helpMenuData = {
     commands: {
         cmd_signup: {
             text: '📝 <b>/signup</b>\n\nRegister your eCash address and get a deposit address.\n\n<b>Usage:</b>\n<code>/signup ecash:qp...</code>\n\n<b>Note:</b>\nA deposit address is always assigned by the bot after you register your address.',
+            keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
+        },
+        cmd_mywallet: {
+            text: '👛 <b>/mywallet</b>\n\nQuery your registered wallet address, current balance, and recent transactions.\n\n<b>Usage:</b>\n<code>/mywallet</code>\n\n<b>Note:</b>\nPlease register first with <code>/signup ecash:qp...</code>.',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_price: {

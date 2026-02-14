@@ -14,6 +14,7 @@ const {
     getFormattedContext,
     isGroupMessage
 } = require('../infrastructure/storage/groupMessageStorage.js');
+const { getUserAddress } = require('../infrastructure/storage/userAddressStore.js');
 
 const { handleRequestIfAllowed, handlePhotoMessage } = require('../application/usecases/conversationHandler.js');
 const { processGroupMessage } = require('../application/usecases/spamHandler.js');
@@ -756,6 +757,49 @@ function registerRoutes(bot) {
         }
     });
 
+    // Listener 5.1: my wallet (registered user address + balance)
+    bot.on('message', async (msg) => {
+        if (!msg.text) return;
+        const text = msg.text.trim().toLowerCase();
+        const isMyWalletCommand = text === '/mywallet' || text === `/mywallet@${BOT_USERNAME.toLowerCase()}`;
+        if (!isMyWalletCommand) {
+            return;
+        }
+        if (LIMITED_MODE) {
+            await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
+            return;
+        }
+        console.log('\n--- Processing my wallet command ---');
+        try {
+            const userData = await getUserAddress(msg.from.id);
+            const registeredAddress = userData?.address;
+
+            if (!registeredAddress) {
+                await sendPromptMessage(
+                    bot,
+                    msg.chat.id,
+                    '❌ You have not registered an address yet.\n\nUse /signup <ecash_address> first.'
+                );
+                return;
+            }
+
+            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '👛 Fetching your wallet...');
+            const result = await handleExplorerAddress(registeredAddress, 0);
+            const { renderExplorerMessage } = require('./views/explorerView.js');
+            const textResp = renderExplorerMessage(result, 0);
+
+            await bot.editMessageText(textResp, {
+                chat_id: msg.chat.id,
+                message_id: loadingMessage.message_id,
+                parse_mode: 'HTML',
+                disable_web_page_preview: true
+            });
+        } catch (error) {
+            console.error('My wallet query failed:', error);
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to fetch your wallet. Please try again later.');
+        }
+    });
+
     // Listener 6: avalanche
     bot.on('message', async (msg) => {
         if (!msg.text) return;
@@ -885,7 +929,7 @@ function registerRoutes(bot) {
             'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
             'removewhitelist', 'message', 'showmessage', 'deletemessage',
             'stopmessage', 'listscheduled', 'mission', 'showmission', 'deletemission',
-            'start', 'help', 'price', 'ava', 'explorer', 'time', 'translate', 'chronik', 'mcp'
+            'start', 'help', 'price', 'ava', 'explorer', 'mywallet', 'time', 'translate', 'chronik', 'mcp'
         ];
         
         if (knownCommands.includes(commandName.toLowerCase())) {
@@ -964,6 +1008,8 @@ function registerRoutes(bot) {
             msg.text?.trim().toLowerCase() === `/ava@${BOT_USERNAME.toLowerCase()}` ||
             msg.text?.trim().toLowerCase().startsWith('/explorer') ||
             msg.text?.trim().toLowerCase().startsWith(`/explorer@${BOT_USERNAME.toLowerCase()}`) ||
+            msg.text?.trim().toLowerCase() === "/mywallet" ||
+            msg.text?.trim().toLowerCase() === `/mywallet@${BOT_USERNAME.toLowerCase()}` ||
             msg.text?.trim().toLowerCase().startsWith('/time') ||
             msg.text?.trim().toLowerCase().startsWith(`/time@${BOT_USERNAME.toLowerCase()}`) ||
             msg.text?.trim().toLowerCase().startsWith('/chronik') ||
