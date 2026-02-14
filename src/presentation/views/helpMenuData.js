@@ -98,7 +98,7 @@ const helpMenuData = {
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_mywallet: {
-            text: '👛 <b>/mywallet</b>\n\nQuery your registered wallet address, current balance, and recent transactions.\n\n<b>Usage:</b>\n<code>/mywallet</code>\n\n<b>Note:</b>\nPlease register first with <code>/signup ecash:qp...</code>.',
+            text: '👛 <b>/mywallet</b>\n\nQuery your signup address, deposit address, and database balance.\n\n<b>Usage:</b>\n<code>/mywallet</code>\n\n<b>Note:</b>\nPlease register first with <code>/signup ecash:qp...</code>.',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_price: {

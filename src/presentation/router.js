@@ -14,7 +14,7 @@ const {
     getFormattedContext,
     isGroupMessage
 } = require('../infrastructure/storage/groupMessageStorage.js');
-const { getUserAddress } = require('../infrastructure/storage/userAddressStore.js');
+const { getUserAddress, ensureUserRecord } = require('../infrastructure/storage/userAddressStore.js');
 
 const { handleRequestIfAllowed, handlePhotoMessage } = require('../application/usecases/conversationHandler.js');
 const { processGroupMessage } = require('../application/usecases/spamHandler.js');
@@ -757,7 +757,7 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 5.1: my wallet (registered user address + balance)
+    // Listener 5.1: my wallet (registered user address + DB balance)
     bot.on('message', async (msg) => {
         if (!msg.text) return;
         const text = msg.text.trim().toLowerCase();
@@ -771,8 +771,10 @@ function registerRoutes(bot) {
         }
         console.log('\n--- Processing my wallet command ---');
         try {
-            const userData = await getUserAddress(msg.from.id);
+            const userData = await ensureUserRecord(msg.from.id, msg.from.username || msg.from.first_name || null);
             const registeredAddress = userData?.address;
+            const depositAddress = userData?.depositAddress;
+            const dbBalance = Number.isFinite(userData?.balance) ? userData.balance : 20;
 
             if (!registeredAddress) {
                 await sendPromptMessage(
@@ -783,20 +785,16 @@ function registerRoutes(bot) {
                 return;
             }
 
-            const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '👛 Fetching your wallet...');
-            const result = await handleExplorerAddress(registeredAddress, 0);
-            const { renderExplorerMessage } = require('./views/explorerView.js');
-            const textResp = renderExplorerMessage(result, 0);
+            const walletText =
+                '👛 *My Wallet*\n\n' +
+                `📍 Signup Address: \`${registeredAddress}\`\n` +
+                `📦 Deposit Address: \`${depositAddress || 'Not assigned yet'}\`\n` +
+                `💾 DB Balance: *${dbBalance}*`;
 
-            await bot.editMessageText(textResp, {
-                chat_id: msg.chat.id,
-                message_id: loadingMessage.message_id,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true
-            });
+            await sendPromptMessage(bot, msg.chat.id, walletText, { parse_mode: 'Markdown' });
         } catch (error) {
             console.error('My wallet query failed:', error);
-            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to fetch your wallet. Please try again later.');
+            await sendPromptMessage(bot, msg.chat.id, '❌ Failed to fetch your wallet data. Please try again later.');
         }
     });
 
