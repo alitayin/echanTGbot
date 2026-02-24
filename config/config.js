@@ -46,7 +46,7 @@ module.exports = {
   DATA_KEYWORDS: process.env.DATA_KEYWORDS ? process.env.DATA_KEYWORDS.split(',') : [],
 
   // Chronik configuration (can be overridden by env vars)
-  CHRONIK_URLS: (process.env.CHRONIK_URLS || 'https://chronik1.alitayin.com')
+  CHRONIK_URLS: (process.env.CHRONIK_URLS || 'https://chronik.e.cash')
     .split(',')
     .map(s => s.trim())
     .filter(Boolean),
