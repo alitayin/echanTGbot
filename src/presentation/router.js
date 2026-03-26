@@ -185,10 +185,17 @@ function registerRoutes(bot) {
             return;
         }
         
-        // Dynamically load reporters list
-        const reporters = await getReporters();
-        if (!reporters.includes(msg.from.username)) {
-            return;
+        // Allow group creators and admins, or users with a report license
+        let isPrivileged = false;
+        try {
+            const member = await bot.getChatMember(msg.chat.id, msg.from.id);
+            isPrivileged = ['creator', 'administrator'].includes(member.status);
+        } catch (_) {}
+        if (!isPrivileged) {
+            const reporters = await getReporters();
+            if (!reporters.includes(msg.from.username)) {
+                return;
+            }
         }
         
         if (LIMITED_MODE) {

@@ -3,6 +3,7 @@
 
 # Ignore local docs not to commit
 ARCHITECTURE.md
+LOCAL_PLAN.md
 
 # Ignore folders not meant for version control
 testscripts/

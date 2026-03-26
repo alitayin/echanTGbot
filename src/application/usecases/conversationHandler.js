@@ -190,7 +190,17 @@ async function handlePhotoMessage(msg, photo, query, bot, ALLOWED_USERS, BLOCKED
     return;
   }
 
-  const fileUrl = await getPhotoUrl(bot, photo.file_id, TELEGRAM_TOKEN);
+  let fileUrl;
+  try {
+    fileUrl = await getPhotoUrl(bot, photo.file_id, TELEGRAM_TOKEN);
+  } catch (urlError) {
+    console.error('Failed to get photo URL, falling back to text-only:', urlError.message);
+    await sendPromptMessage(bot, msg.chat.id,
+      "Could not load your image. Continuing as a text conversation — please describe what you need.",
+      { reply_to_message_id: msg.message_id }
+    );
+    return;
+  }
 
   limiter.enqueue(async () => {
     try {

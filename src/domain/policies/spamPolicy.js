@@ -1,6 +1,10 @@
 // Domain policy for spam detection and disciplinary decisions.
 // Pure functions only. No side effects, IO, or environment access.
 
+// Disciplinary thresholds
+const FIRST_OFFENSE_COUNT = 1;
+const MIN_WORD_COUNT_DEFAULT = 1;
+
 function containsRelevantKeywords(text, relevantKeywords) {
 	const lowercaseText = (text || '').toLowerCase();
 	const keywords = Array.isArray(relevantKeywords) ? relevantKeywords : [];
@@ -23,7 +27,7 @@ function isSpamMessage(params) {
 		spamThreshold,
 		query,
 		relevantKeywords,
-		minWordCount = 1,
+		minWordCount = MIN_WORD_COUNT_DEFAULT,
 	} = params || {};
 
 	const score = calculateSpamScore({ deviation, suspicion, inducement });
@@ -34,7 +38,7 @@ function isSpamMessage(params) {
 	return (
 		spamFlag === true &&
 		score > Number(spamThreshold || 0) &&
-		wordCount >= Number(minWordCount || 1) &&
+		wordCount >= Number(minWordCount || MIN_WORD_COUNT_DEFAULT) &&
 		!hasRelevantKeywords
 	);
 }
@@ -45,7 +49,7 @@ function decideSecondarySpamCheck(isPrimarySpam) {
 
 function decideDisciplinaryAction(options) {
 	const currentCount = Number(options?.currentSpamCountInWindow || 0);
-	return currentCount === 1 ? 'warn' : 'kick';
+	return currentCount === FIRST_OFFENSE_COUNT ? 'warn' : 'kick';
 }
 
 module.exports = {
@@ -55,5 +59,3 @@ module.exports = {
 	decideSecondarySpamCheck,
 	decideDisciplinaryAction,
 };
-
-

@@ -9,6 +9,7 @@ function createRateLimiter(options) {
     requestIntervalMs: options?.requestIntervalMs,
     dailyLimit: options?.dailyLimit,
     dailyWindowMs: options?.dailyWindowMs,
+    maxQueueSize: options?.maxQueueSize ?? 200,
   };
 
   function validateConfig(cfg) {
@@ -68,6 +69,9 @@ function createRateLimiter(options) {
   }
 
   function enqueue(run) {
+    if (queue.length() >= config.maxQueueSize) {
+      return Promise.reject(new Error(`rateLimiter: queue full (max ${config.maxQueueSize})`));
+    }
     return new Promise((resolve, reject) => {
       queue.push({ run, resolve, reject });
     });
