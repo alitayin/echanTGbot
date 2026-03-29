@@ -71,7 +71,14 @@ const { handleSpamModerationCallback } = require('../application/usecases/spamMo
 const { handleChronikCommand } = require('../application/usecases/chronikHandler.js');
 const { handleFloodShieldJoins } = require('../application/usecases/floodShieldHandler.js');
 
-const LIMITED_MODE = false; 
+function withTimeout(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms))
+    ]);
+}
+
+const LIMITED_MODE = false;
 const FEATURE_DISABLED_MSGS = [
     'I’m resting. When I wake up, will the Earth be any different?',
     'I can’t talk to you for now; the Earth’s signal is too weak..',
@@ -1240,14 +1247,14 @@ function registerRoutes(bot) {
                 const menuData = getHelpMenu(query.data, isAdmin);
                 
                 if (menuData) {
-                    await bot.editMessageText(menuData.text, {
+                    await withTimeout(bot.editMessageText(menuData.text, {
                         chat_id: query.message.chat.id,
                         message_id: query.message.message_id,
                         parse_mode: 'HTML',
                         reply_markup: {
                             inline_keyboard: menuData.keyboard
                         }
-                    });
+                    }), 5000);
                     await bot.answerCallbackQuery(query.id);
                 } else {
                     await bot.answerCallbackQuery(query.id, {

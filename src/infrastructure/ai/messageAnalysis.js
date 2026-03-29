@@ -13,6 +13,8 @@ function makeClients() {
     ];
 }
 
+const CLIENTS = makeClients();
+
 /**
  * Get message analysis.
  * @param {string} query
@@ -22,16 +24,20 @@ function makeClients() {
 async function fetchMessageAnalysis(query, userId) {
     try {
         const answer = await withKeyRotation(
-            makeClients(),
+            CLIENTS,
             async (client) => {
                 const data = await client.sendTextRequest(query, userId);
-                return JSON.parse(data.answer);
+                try {
+                    return JSON.parse(data.answer);
+                } catch {
+                    throw new Error('Invalid JSON: ' + String(data.answer).slice(0, 80));
+                }
             }
         );
         console.log('Message analysis successful');
         return answer;
     } catch (error) {
-        console.log('Message analysis failed, returning null');
+        console.warn('Message analysis failed, returning null', error.message);
         return null;
     }
 }
@@ -46,16 +52,20 @@ async function fetchMessageAnalysis(query, userId) {
 async function fetchMessageAnalysisWithImage(query, imageUrl, userId) {
     try {
         const answer = await withKeyRotation(
-            makeClients(),
+            CLIENTS,
             async (client) => {
                 const data = await client.sendImageRequest(imageUrl, query, userId);
-                return JSON.parse(data.answer);
+                try {
+                    return JSON.parse(data.answer);
+                } catch {
+                    throw new Error('Invalid JSON: ' + String(data.answer).slice(0, 80));
+                }
             }
         );
         console.log('Image message analysis successful');
         return answer;
     } catch (error) {
-        console.log('Image message analysis failed, returning null');
+        console.warn('Image message analysis failed, returning null', error.message);
         return null;
     }
 }
@@ -66,17 +76,17 @@ async function fetchMessageAnalysisWithImage(query, imageUrl, userId) {
  * @returns {Promise<Array>}
  */
 async function batchMessageAnalysis(messages) {
-    const results = [];
-    for (const message of messages) {
-        try {
-            const result = await fetchMessageAnalysis(message.query, message.userId);
-            results.push({ ...message, analysis: result });
-        } catch (error) {
-            console.error(`Batch analysis failed - message: ${message.query.substring(0, 50)}...`, error.message);
-            results.push({ ...message, analysis: null, error: error.message });
+    const settled = await Promise.allSettled(
+        messages.map((message) => fetchMessageAnalysis(message.query, message.userId))
+    );
+    return settled.map((result, i) => {
+        const message = messages[i];
+        if (result.status === 'fulfilled') {
+            return { ...message, analysis: result.value };
         }
-    }
-    return results;
+        console.error(`Batch analysis failed - message: ${message.query.substring(0, 50)}...`, result.reason?.message);
+        return { ...message, analysis: null, error: result.reason?.message };
+    });
 }
 
 /**

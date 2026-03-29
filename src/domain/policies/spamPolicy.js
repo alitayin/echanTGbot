@@ -5,6 +5,11 @@
 const FIRST_OFFENSE_COUNT = 1;
 const MIN_WORD_COUNT_DEFAULT = 1;
 
+// English language detection constants
+const ENGLISH_COVERAGE_SKIP = new Set(['dan']); // high-frequency collision words (e.g., Indonesian "dan")
+const ENGLISH_MIN_COVERAGE = 0.6;       // minimum high-freq word coverage to treat Latin text as English
+const ENGLISH_MIN_COVERAGE_STEM = 0.80; // stricter threshold when using stemmed matching
+
 function containsRelevantKeywords(text, relevantKeywords) {
 	const lowercaseText = (text || '').toLowerCase();
 	const keywords = Array.isArray(relevantKeywords) ? relevantKeywords : [];
@@ -58,4 +63,7 @@ module.exports = {
 	isSpamMessage,
 	decideSecondarySpamCheck,
 	decideDisciplinaryAction,
+	ENGLISH_COVERAGE_SKIP,
+	ENGLISH_MIN_COVERAGE,
+	ENGLISH_MIN_COVERAGE_STEM,
 };

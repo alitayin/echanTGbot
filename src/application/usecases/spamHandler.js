@@ -18,11 +18,6 @@ const { getImageUrls, hasImageMedia, getImageFileId } = require('../../infrastru
 const { containsWhitelistKeyword } = require('../../infrastructure/storage/whitelistKeywordStore.js');
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
 const { HIGH_FREQ_WORDS } = require('../../infrastructure/ai/englishHighFreq.js');
-// Skip-list for high-frequency collisions (e.g., Indonesian "dan")
-const ENGLISH_COVERAGE_SKIP = new Set(['dan']);
-// Minimum English high-frequency coverage to treat Latin text as English
-const ENGLISH_MIN_COVERAGE = 0.6; //
-const ENGLISH_MIN_COVERAGE_STEM = 0.80; 
 const {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
@@ -33,6 +28,9 @@ const {
     isSpamMessage,
     decideSecondarySpamCheck,
     decideDisciplinaryAction,
+    ENGLISH_COVERAGE_SKIP,
+    ENGLISH_MIN_COVERAGE,
+    ENGLISH_MIN_COVERAGE_STEM,
 } = require('../../domain/policies/spamPolicy.js');
 
 function simpleStem(word) {
@@ -637,7 +635,7 @@ async function processGroupMessage(msg, bot, ports) {
             await recordNormalMessageInGroup(msg.chat.id, msg.from.id);
         }
 
-        // 非 trusted 用户仅使用 API 的 is_english 标记，不再使用本地启发式
+        // Non-trusted users: rely solely on the API's is_english flag, not local heuristics
         const apiIsEnglish = answer?.is_english;
         if (apiIsEnglish === false) {
             console.log('API marked message as non-English (non-trusted path), translating');
