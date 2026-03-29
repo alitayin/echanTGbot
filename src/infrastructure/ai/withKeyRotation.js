@@ -10,6 +10,9 @@
  *                       all attempts are exhausted.
  */
 async function withKeyRotation(clients, fn, opts = {}) {
+  if (!clients || clients.length === 0) {
+    throw new Error('withKeyRotation: clients array must not be empty');
+  }
   const maxRetriesPerKey = opts.maxRetriesPerKey ?? 3;
   const maxTotalAttempts = opts.maxTotalAttempts ?? clients.length * maxRetriesPerKey;
 

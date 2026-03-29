@@ -100,7 +100,7 @@ async function recordNormalMessageInGroup(chatId, userId) {
     if (existing.trusted) {
         existing.lastUpdated = now;
         normalMessageTracker.set(key, existing);
-        persistRecord(key, existing);
+        await persistRecord(key, existing);
         return existing;
     }
 
@@ -115,7 +115,7 @@ async function recordNormalMessageInGroup(chatId, userId) {
     }
 
     normalMessageTracker.set(key, existing);
-    persistRecord(key, existing);
+    await persistRecord(key, existing);
     return existing;
 }
 
@@ -139,7 +139,7 @@ async function resetNormalMessageStreakInGroup(chatId, userId) {
     };
 
     normalMessageTracker.set(key, resetRecord);
-    persistRecord(key, resetRecord);
+    await persistRecord(key, resetRecord);
 }
 
 /**
@@ -164,7 +164,7 @@ async function markUserTrustedInGroup(chatId, userId, reason = 'manual') {
         lastUpdated: now,
     };
     normalMessageTracker.set(key, updated);
-    persistRecord(key, updated);
+    await persistRecord(key, updated);
     console.log(`User ${userId} in chat ${chatId} marked as trusted (reason: ${reason})`);
     return true;
 }
