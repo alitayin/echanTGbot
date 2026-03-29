@@ -14,10 +14,12 @@ function makeClients() {
   ];
 }
 
+const CLIENTS = makeClients();
+
 async function performSecondarySpamCheck(query, userId, imageUrls = null) {
   try {
     const answer = await withKeyRotation(
-      makeClients(),
+      CLIENTS,
       async (client) => {
         let data;
         if (imageUrls && imageUrls.length > 0) {
@@ -26,7 +28,12 @@ async function performSecondarySpamCheck(query, userId, imageUrls = null) {
         } else {
           data = await client.sendTextRequest(query, userId);
         }
-        const result = JSON.parse(data.answer);
+        let result;
+        try {
+          result = JSON.parse(data.answer);
+        } catch {
+          throw new Error('Invalid JSON: ' + String(data.answer).slice(0, 80));
+        }
         if (typeof result.spam !== 'boolean') {
           throw new Error('Unexpected response shape: spam field missing');
         }
@@ -35,7 +42,7 @@ async function performSecondarySpamCheck(query, userId, imageUrls = null) {
     );
     return answer;
   } catch (error) {
-    console.log('Secondary spam check failed, returning false');
+    console.warn('Secondary spam check failed, returning false', error.message);
     return false;
   }
 }

@@ -4,6 +4,7 @@ const { NOTIFICATION_GROUP_ID } = require('../../../config/config.js');
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 let exportInProgress = false;
+let exportIntervalHandle = null;
 
 function getNextMondayMidnight(now = new Date()) {
     const next = new Date(now);
@@ -74,9 +75,11 @@ function startWeeklyExportScheduler(bot) {
 
     setTimeout(() => {
         exportAndSendToLogGroup(bot);
-        setInterval(() => {
-            exportAndSendToLogGroup(bot);
-        }, WEEK_MS);
+        if (!exportIntervalHandle) {
+            exportIntervalHandle = setInterval(() => {
+                exportAndSendToLogGroup(bot);
+            }, WEEK_MS);
+        }
     }, Math.max(0, delay));
 }
 
