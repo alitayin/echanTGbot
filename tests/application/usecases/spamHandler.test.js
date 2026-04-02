@@ -243,4 +243,36 @@ describe('buildCombinedAnalysisQuery', () => {
         expect(result).toContain('[Replying to @user_a]');
         expect(result).toContain('[External quote from "External Channel"]');
     });
+
+    it('uses forwarded caption when forwarded message has no text', () => {
+        const msg = {
+            caption: 'forwarded caption spam',
+            forward_from_chat: { title: 'Spam News' },
+            from: { first_name: 'Alice', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[Forwarded from Spam News] forwarded caption spam');
+    });
+
+    it('keeps forwarded, quoted, reply_to_message, and external_reply content together', () => {
+        const msg = {
+            text: 'hi',
+            forward_from: { username: 'origin_spammer' },
+            quote: { text: 'quoted scam fragment' },
+            reply_to_message: {
+                caption: 'reply caption scam fragment',
+                from: { username: 'reply_user' },
+            },
+            external_reply: {
+                origin: { chat: { title: 'External Scam Channel' } },
+                caption: 'external caption scam fragment',
+            },
+            from: { first_name: 'Mix', last_name: 'User' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[Forwarded from @origin_spammer] hi');
+        expect(result).toContain('[Quoted]: quoted scam fragment');
+        expect(result).toContain('[Replying to @reply_user]: reply caption scam fragment');
+        expect(result).toContain('[External quote from "External Scam Channel"]: external caption scam fragment');
+    });
 });

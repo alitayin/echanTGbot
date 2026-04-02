@@ -5,7 +5,7 @@
  * Uses ESM imports (not createRequire) so that vi.mock can intercept the
  * internal require() calls that the handler makes at module load time.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // vi.mock calls are hoisted by vitest before the imports below are resolved.
 
@@ -46,6 +46,7 @@ import {
 function makeBot() {
     return {
         sendMessage: vi.fn().mockResolvedValue({ message_id: 1 }),
+        deleteMessage: vi.fn().mockResolvedValue({}),
         editMessageText: vi.fn().mockResolvedValue({}),
         answerCallbackQuery: vi.fn().mockResolvedValue({}),
         getFileStream: vi.fn(),
@@ -79,6 +80,10 @@ beforeEach(() => {
     store.saveMessage.mockResolvedValue(true);
     store.deleteMessage.mockResolvedValue(true);
     store.getMessage.mockResolvedValue(null);
+});
+
+afterEach(() => {
+    vi.useRealTimers();
 });
 
 // ---------------------------------------------------------------------------
@@ -201,6 +206,38 @@ describe('handleMessageCommand — overwrite confirmation flow', () => {
         expect(bot.editMessageText).toHaveBeenCalledWith(
             expect.stringMatching(/expired|again/i),
             expect.anything()
+        );
+    });
+
+    it('expires a real pending overwrite after 5 minutes', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-04-02T10:00:00Z'));
+
+        store.messageExists.mockResolvedValue(true);
+        const bot = makeBot();
+        const chatId = -100;
+        const userId = 42;
+        const commandName = 'timed';
+
+        await handleMessageCommand(
+            makeReplyMsg(`/message ${commandName}`, 'This should expire'),
+            bot
+        );
+
+        vi.advanceTimersByTime(5 * 60 * 1000 + 1);
+
+        await handleMessageCallback(
+            {
+                id: 'cb-expire-real',
+                data: `msg_overwrite__${chatId}__${userId}__${commandName}`,
+                message: { chat: { id: chatId }, message_id: 123 },
+            },
+            bot
+        );
+
+        expect(bot.editMessageText).toHaveBeenCalledWith(
+            expect.stringMatching(/expired|again/i),
+            expect.objectContaining({ chat_id: chatId, message_id: 123 })
         );
     });
 
