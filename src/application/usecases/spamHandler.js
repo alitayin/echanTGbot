@@ -67,6 +67,29 @@ function buildCombinedAnalysisQuery(msg) {
             }
         }
 
+        // Extract reply_to_message content (reply to a message in the same chat)
+        if (msg?.reply_to_message) {
+            const replyText = (msg.reply_to_message.text || msg.reply_to_message.caption || '').trim();
+            if (replyText) {
+                const replyFrom = msg.reply_to_message.from?.username
+                    || msg.reply_to_message.forward_sender_name
+                    || 'unknown';
+                contentParts.push(`[Replying to @${replyFrom}]: ${replyText}`);
+            }
+        }
+
+        // Extract external_reply content (cross-chat/channel quoted message)
+        if (msg?.external_reply) {
+            const extOrigin = msg.external_reply.origin;
+            const extText = (msg.external_reply.text || msg.external_reply.caption || '').trim();
+            const extTitle = (extOrigin?.chat?.title || extOrigin?.sender_user_name || '').trim();
+            if (extText) {
+                contentParts.push(`[External quote from "${extTitle}"]: ${extText}`);
+            } else if (extTitle) {
+                contentParts.push(`[External quote from "${extTitle}"]`);
+            }
+        }
+
         const replyMarkupParts = extractReplyMarkupSummary(msg?.reply_markup);
         if (replyMarkupParts.length) {
             contentParts.push(...replyMarkupParts);

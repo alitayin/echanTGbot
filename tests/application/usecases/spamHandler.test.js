@@ -102,4 +102,145 @@ describe('buildCombinedAnalysisQuery', () => {
         const result = buildCombinedAnalysisQuery(null);
         expect(result).toBe('');
     });
+
+    // --- reply_to_message extraction (task 2) ---
+
+    it('includes reply_to_message text with sender username', () => {
+        const msg = {
+            text: 'hi',
+            reply_to_message: {
+                text: 'Win 100 BTC click here now!',
+                from: { username: 'spammer123' },
+            },
+            from: { first_name: 'Alice', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[Replying to @spammer123]');
+        expect(result).toContain('Win 100 BTC click here now!');
+        expect(result).toContain('hi');
+    });
+
+    it('includes reply_to_message caption when no text', () => {
+        const msg = {
+            text: 'check this',
+            reply_to_message: {
+                caption: 'Earn 1000x guaranteed',
+                from: { username: 'bot_spam' },
+            },
+            from: { first_name: 'Bob', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('Earn 1000x guaranteed');
+    });
+
+    it('falls back to "unknown" when reply_to_message has no username', () => {
+        const msg = {
+            text: 'ok',
+            reply_to_message: {
+                text: 'spam content here',
+                from: {},
+            },
+            from: { first_name: 'Carol', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[Replying to @unknown]');
+        expect(result).toContain('spam content here');
+    });
+
+    it('ignores reply_to_message when its text is empty', () => {
+        const msg = {
+            text: 'hello',
+            reply_to_message: { text: '', from: { username: 'someone' } },
+            from: { first_name: 'Dave', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).not.toContain('[Replying to');
+    });
+
+    it('a short innocent message includes full spam from reply_to_message', () => {
+        const msg = {
+            text: '好的',
+            reply_to_message: {
+                text: 'FREE CRYPTO GIVEAWAY! Send 0.1 ETH get 1 ETH back! Limited time only!',
+                from: { username: 'giveaway_scam' },
+            },
+            from: { first_name: 'Eve', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('FREE CRYPTO GIVEAWAY');
+        expect(result).toContain('[Replying to @giveaway_scam]');
+    });
+
+    // --- external_reply extraction (task 2) ---
+
+    it('includes external_reply text with channel title', () => {
+        const msg = {
+            text: 'see above',
+            external_reply: {
+                origin: { chat: { title: 'Crypto Pump Group' } },
+                text: 'Send BTC and get 10x returns immediately',
+            },
+            from: { first_name: 'Alice', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[External quote from "Crypto Pump Group"]');
+        expect(result).toContain('Send BTC and get 10x returns immediately');
+    });
+
+    it('includes external_reply origin title even when text is absent', () => {
+        const msg = {
+            text: 'check this out',
+            external_reply: {
+                origin: { chat: { title: 'Shady Channel' } },
+            },
+            from: { first_name: 'Bob', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[External quote from "Shady Channel"]');
+    });
+
+    it('uses sender_user_name as fallback when no chat title in external_reply', () => {
+        const msg = {
+            text: 'fwd',
+            external_reply: {
+                origin: { sender_user_name: 'some_channel' },
+                text: 'Buy crypto now at discount',
+            },
+            from: { first_name: 'Carol', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('[External quote from "some_channel"]');
+        expect(result).toContain('Buy crypto now at discount');
+    });
+
+    it('ignores external_reply when origin has no title and no text', () => {
+        const msg = {
+            text: 'hi',
+            external_reply: { origin: {} },
+            from: { first_name: 'Dave', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).not.toContain('[External quote');
+    });
+
+    it('combines user text + reply_to_message + external_reply in a single query', () => {
+        const msg = {
+            text: 'hi',
+            reply_to_message: {
+                text: 'spam from reply',
+                from: { username: 'user_a' },
+            },
+            external_reply: {
+                origin: { chat: { title: 'External Channel' } },
+                text: 'spam from external',
+            },
+            from: { first_name: 'Fred', last_name: '' },
+        };
+        const result = buildCombinedAnalysisQuery(msg);
+        expect(result).toContain('hi');
+        expect(result).toContain('spam from reply');
+        expect(result).toContain('spam from external');
+        expect(result).toContain('[Replying to @user_a]');
+        expect(result).toContain('[External quote from "External Channel"]');
+    });
 });

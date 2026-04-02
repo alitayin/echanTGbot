@@ -10,6 +10,10 @@ const {
 } = require('../../infrastructure/storage/storedMessageStore.js');
 const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 
+// In-memory store for pending overwrite confirmations
+// key: `${chatId}__${userId}__${commandName}`, value: { commandName, messageContent, photoBuffer, photoMetadata, username, expiresAt }
+const pendingOverwrites = new Map();
+
 function parseTimeString(timeStr) {
     const match = timeStr.match(/^([\d.]+)h$/i);
     if (!match) {
@@ -114,12 +118,21 @@ async function handleMessageCommand(msg, bot) {
         // Regular message (not scheduled)
         const exists = await messageExists(commandName);
         if (exists) {
+            const pendingKey = `${msg.chat.id}__${msg.from.id}__${commandName}`;
+            pendingOverwrites.set(pendingKey, {
+                commandName,
+                messageContent: messageToSave,
+                photoBuffer,
+                photoMetadata,
+                username,
+                expiresAt: Date.now() + 5 * 60 * 1000,
+            });
             await sendPromptMessage(bot, msg.chat.id, 
                 `⚠️ Command name "${commandName}" already exists. The message will be overwritten.\n\nContinue?`,
                 {
                     reply_markup: {
                         inline_keyboard: [[
-                            { text: '✅ Yes, overwrite', callback_data: `msg_overwrite_${commandName}_${msg.reply_to_message.message_id}` },
+                            { text: '✅ Yes, overwrite', callback_data: `msg_overwrite__${msg.chat.id}__${msg.from.id}__${commandName}` },
                             { text: '❌ Cancel', callback_data: 'msg_cancel' }
                         ]]
                     }
@@ -311,18 +324,51 @@ async function handleMessageCallback(query, bot) {
             return;
         }
 
-        if (data.startsWith('msg_overwrite_')) {
-            const parts = data.replace('msg_overwrite_', '').split('_');
-            const commandName = parts[0];
+        if (data.startsWith('msg_overwrite__')) {
+            // Format: msg_overwrite__<chatId>__<userId>__<commandName>
+            const withoutPrefix = data.replace('msg_overwrite__', '');
+            const separatorIdx1 = withoutPrefix.indexOf('__');
+            const separatorIdx2 = withoutPrefix.indexOf('__', separatorIdx1 + 2);
+            const pendingChatId = withoutPrefix.substring(0, separatorIdx1);
+            const pendingUserId = withoutPrefix.substring(separatorIdx1 + 2, separatorIdx2);
+            const commandName = withoutPrefix.substring(separatorIdx2 + 2);
+            const pendingKey = `${pendingChatId}__${pendingUserId}__${commandName}`;
+
+            const pending = pendingOverwrites.get(pendingKey);
+            if (!pending || Date.now() > pending.expiresAt) {
+                pendingOverwrites.delete(pendingKey);
+                await bot.editMessageText(
+                    `⚠️ Overwrite confirmation expired. Please use /message ${commandName} again.`,
+                    { chat_id: chatId, message_id: messageId }
+                );
+                await bot.answerCallbackQuery(query.id);
+                return;
+            }
 
             try {
-                await bot.editMessageText(
-                    `Please use /message ${commandName} again by replying to the message you want to save.`,
-                    {
+                const success = await saveMessage(
+                    pending.commandName,
+                    pending.messageContent,
+                    pending.username,
+                    pending.photoBuffer,
+                    pending.photoMetadata
+                );
+                pendingOverwrites.delete(pendingKey);
+
+                if (success) {
+                    const contentPreview = pending.photoBuffer
+                        ? `🖼️ Photo${pending.messageContent ? ' + ' + pending.messageContent.substring(0, 30) : ''}`
+                        : `${(pending.messageContent || '').substring(0, 50)}`;
+                    await bot.editMessageText(
+                        `✅ Message "${commandName}" has been overwritten.\n\n📝 Preview: ${contentPreview}`,
+                        { chat_id: chatId, message_id: messageId }
+                    );
+                } else {
+                    await bot.editMessageText('❌ Failed to overwrite message. Please try again.', {
                         chat_id: chatId,
                         message_id: messageId
-                    }
-                );
+                    });
+                }
             } catch (error) {
                 console.error('Failed to overwrite message:', error);
                 await bot.editMessageText('❌ Failed to overwrite message. Please try again.', {
