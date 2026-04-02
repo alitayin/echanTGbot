@@ -1186,7 +1186,6 @@ function registerRoutes(bot) {
             return;
         }
 
-        console.log('\n--- Detect group spam ---');
         await processGroupMessage(msg, bot, ports);
     });
 
@@ -1203,8 +1202,6 @@ function registerRoutes(bot) {
         if (msg.text?.startsWith('/')) {
             return;
         }
-
-        console.log('\n--- Detect impersonation ---');
 
         const hasAlitayin = await isGroupWithAlitayin(msg.chat.id, bot);
         if (!hasAlitayin) {

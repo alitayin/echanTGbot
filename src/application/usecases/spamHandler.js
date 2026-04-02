@@ -359,19 +359,7 @@ async function handleTranslation(msg, bot) {
 }
 
 async function processGroupMessage(msg, bot, ports) {
-    console.log('processGroupMessage entry', {
-        chatId: msg?.chat?.id,
-        chatType: msg?.chat?.type,
-        fromId: msg?.from?.id,
-        isBot: msg?.from?.is_bot,
-        senderChatId: msg?.sender_chat?.id,
-        senderChatType: msg?.sender_chat?.type,
-        hasPhoto: !!msg?.photo,
-        hasSticker: !!msg?.sticker,
-        hasDocument: !!msg?.document,
-        documentMime: msg?.document?.mime_type,
-        hasAnimation: !!msg?.animation
-    });
+    console.log(`processGroupMessage: chatId=${msg?.chat?.id} fromId=${msg?.from?.id ?? msg?.sender_chat?.id}`);
 
     if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
         return;
@@ -392,33 +380,7 @@ async function processGroupMessage(msg, bot, ports) {
 
     const query = buildCombinedAnalysisQuery(msg);
     
-    console.log('Message structure (selected fields):', JSON.stringify({
-        text: msg.text,
-        caption: msg.caption,
-        forward_from: msg.forward_from ? { username: msg.forward_from.username, id: msg.forward_from.id } : null,
-        forward_sender_name: msg.forward_sender_name,
-        forward_from_chat: msg.forward_from_chat ? { title: msg.forward_from_chat.title, id: msg.forward_from_chat.id } : null,
-        forward_origin: msg.forward_origin,
-        reply_to_message: msg.reply_to_message ? {
-            text: msg.reply_to_message.text,
-            caption: msg.reply_to_message.caption,
-            from: msg.reply_to_message.from ? { username: msg.reply_to_message.from.username, id: msg.reply_to_message.from.id } : null
-        } : null,
-        quote: msg.quote,
-        external_reply: msg.external_reply,
-        entities: msg.entities,
-        caption_entities: msg.caption_entities,
-        link_preview_options: msg.link_preview_options,
-        has_photo: !!msg.photo,
-        has_video: !!msg.video,
-        has_document: !!msg.document
-    }, null, 2));
-    
-    console.log('All msg keys:', Object.keys(msg).join(', '));
-    
-    console.log('Built query for detection:');
-    console.log(query);
-    console.log('Query length:', query.length);
+    console.log(`Built query: length=${query.length}, hasImage=${hasImageMedia(msg)}`);
     
     if (!query.trim() && !hasImageMedia(msg)) {
         console.log('Skip empty message (no text or image)');

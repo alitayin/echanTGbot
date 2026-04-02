@@ -12,13 +12,22 @@ async function createBotApp() {
 
     // Drop all updates that accumulated while the bot was offline.
     // node-telegram-bot-api does not support drop_pending_updates via deleteWebHook,
-    // so we fetch all pending updates and advance the offset past them.
+    // so we loop over getUpdates until the queue is fully drained.
     try {
-        const pending = await bot.getUpdates({ timeout: 0, limit: 100 });
-        if (pending.length > 0) {
-            const lastOffset = pending[pending.length - 1].update_id + 1;
-            await bot.getUpdates({ offset: lastOffset, timeout: 0, limit: 1 });
-            console.log(`Dropped ${pending.length} pending update(s).`);
+        let totalDropped = 0;
+        let offset = undefined;
+        while (true) {
+            const params = { timeout: 0, limit: 100 };
+            if (offset !== undefined) params.offset = offset;
+            const pending = await bot.getUpdates(params);
+            if (pending.length === 0) break;
+            totalDropped += pending.length;
+            offset = pending[pending.length - 1].update_id + 1;
+        }
+        // Advance Telegram's server-side offset so the queue is marked as read.
+        if (offset !== undefined) {
+            await bot.getUpdates({ offset, timeout: 0, limit: 1 });
+            console.log(`Dropped ${totalDropped} pending update(s).`);
         } else {
             console.log('No pending updates.');
         }
