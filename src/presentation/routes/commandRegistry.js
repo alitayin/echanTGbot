@@ -34,11 +34,11 @@ const {
 
 const LIMITED_MODE = false;
 const FEATURE_DISABLED_MSGS = [
-    'I'm resting. When I wake up, will the Earth be any different?',
-    'I can't talk to you for now; the Earth's signal is too weak..',
-    'I'm listening to the silence; your voice is somewhere behind the static.',
-    'I tried to reach you, but the signal dissolved into the void.',
-    'I can't answer right now; the cosmos is louder than your words.'
+    "I'm resting. When I wake up, will the Earth be any different?",
+    "I can't talk to you for now; the Earth's signal is too weak..",
+    "I'm listening to the silence; your voice is somewhere behind the static.",
+    "I tried to reach you, but the signal dissolved into the void.",
+    "I can't answer right now; the cosmos is louder than your words."
 ];
 
 /**
