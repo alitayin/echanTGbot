@@ -52,9 +52,12 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
-        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        {
+          echo "CHANGELOG<<EOF"
+          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s"
+          echo ""
+          echo "EOF"
+        } >> $GITHUB_OUTPUT
 
     - name: Create Release
       uses: actions/create-release@v1
