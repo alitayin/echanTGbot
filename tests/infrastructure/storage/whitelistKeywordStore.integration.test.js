@@ -37,6 +37,8 @@ afterAll(async () => {
 describe('whitelistKeywordStore – integration: CRUD', () => {
     it('adds a keyword and confirms it exists', async () => {
         await addWhitelistKeyword(kw('hello'), 'tester');
+        // Small delay to ensure write is flushed in CI environments
+        await new Promise(resolve => setTimeout(resolve, 10));
         expect(await isWhitelistKeyword(kw('hello'))).toBe(true);
     });
 
