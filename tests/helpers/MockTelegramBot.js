@@ -9,6 +9,7 @@ export class MockTelegramBot {
         this.deletedMessages = [];
         this.answeredCallbacks = [];
         this.chatMembers = new Map();
+        this.forwardedMessages = [];
     }
 
     async sendMessage(chatId, text, options = {}) {
@@ -35,9 +36,6 @@ export class MockTelegramBot {
 
     async forwardMessage(toChatId, fromChatId, messageId) {
         // Mock forwarding - just record the action
-        if (!this.forwardedMessages) {
-            this.forwardedMessages = [];
-        }
         this.forwardedMessages.push({ toChatId, fromChatId, messageId });
         return {
             message_id: Date.now() + Math.random(),

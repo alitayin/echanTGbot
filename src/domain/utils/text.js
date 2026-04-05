@@ -64,6 +64,18 @@ function getTextContent(msg) {
     return main;
 }
 
+/**
+ * Truncate text to a maximum length with ellipsis
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length before truncation
+ * @param {string} suffix - Suffix to append when truncated (default: '...')
+ * @returns {string} Truncated text
+ */
+function truncate(text, maxLength, suffix = '...') {
+    const str = String(text || '');
+    return str.length > maxLength ? str.substring(0, maxLength) + suffix : str;
+}
+
 module.exports = {
     escapeRegex,
     matchesAnyKeywordWordBoundary,
@@ -72,6 +84,7 @@ module.exports = {
     getUserDisplayName,
     extractUsername,
     getTextContent,
+    truncate,
 };
 
 

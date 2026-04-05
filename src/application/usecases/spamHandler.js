@@ -22,11 +22,15 @@ const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
 const { HIGH_FREQ_WORDS } = require('../../domain/utils/englishHighFreq.js');
 const { extractReplyMarkupSummary } = require('../../domain/utils/messageContext.js');
 const { detectNonEnglish } = require('../../domain/utils/languageDetect.js');
+const { truncate } = require('../../domain/utils/text.js');
 const {
     isUserTrustedInGroup,
     recordNormalMessageInGroup,
     resetNormalMessageStreakInGroup,
 } = require('../../infrastructure/storage/normalMessageTracker.js');
+
+// Constants
+const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
 
 const {
     isSpamMessage,
@@ -290,7 +294,7 @@ async function handleSpamDeletion(msg, bot, query = null, skipCache = false) {
         if (!forwardSuccess) {
             // If forward fails, send the message content as text instead
             const messageContent = query || buildCombinedAnalysisQuery(msg);
-            const fallbackInfo = `⚠️ Could not forward message (ID: ${msg.message_id})\n\nContent:\n${messageContent.substring(0, 500)}${messageContent.length > 500 ? '...' : ''}`;
+            const fallbackInfo = `⚠️ Could not forward message (ID: ${msg.message_id})\n\nContent:\n${truncate(messageContent, MAX_FALLBACK_MESSAGE_LENGTH)}`;
             await bot.sendMessage(NOTIFICATION_GROUP_ID, fallbackInfo);
         }
 
