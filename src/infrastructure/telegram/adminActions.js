@@ -42,10 +42,23 @@ async function deleteMessage(bot, chatId, messageId) {
 
 async function forwardMessage(bot, targetChatId, fromChatId, messageId) {
   try {
+    // Check if bot has forwardMessage method
+    if (typeof bot.forwardMessage !== 'function') {
+      console.error('Failed to forward message: bot.forwardMessage is not a function');
+      return false;
+    }
+
     await bot.forwardMessage(targetChatId, fromChatId, messageId);
     return true;
   } catch (error) {
-    console.error('Failed to forward message:', error);
+    // Handle specific Telegram errors
+    if (error.message.includes('MESSAGE_ID_INVALID')) {
+      console.error(`Failed to forward message: Message ID ${messageId} is invalid or has been deleted`);
+    } else if (error.message.includes('MESSAGE_TO_FORWARD_NOT_FOUND')) {
+      console.error(`Failed to forward message: Message ${messageId} not found in chat ${fromChatId}`);
+    } else {
+      console.error('Failed to forward message:', error.message || error);
+    }
     return false;
   }
 }

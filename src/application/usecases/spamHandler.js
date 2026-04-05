@@ -1,4 +1,4 @@
-const { 
+const {
     KOUSH_USER_ID,
     ALITAYIN_USER_ID,
     SPAM_THRESHOLD,
@@ -6,6 +6,8 @@ const {
     NOTIFICATION_GROUP_ID,
     USERNAME_LENGTH_THRESHOLD
 } = require('../../../config/config.js');
+
+const logger = require('../../utils/logger.js');
 
 const { fetchMessageAnalysis, fetchMessageAnalysisWithImage } = require('../../infrastructure/ai/messageAnalysis.js');
 const { performSecondarySpamCheck } = require('../../infrastructure/ai/secondarySpamCheck.js');
@@ -283,7 +285,14 @@ async function handleSpamDeletion(msg, bot, query = null, skipCache = false) {
         const sourceInfo = `Spam detected from ${senderType} ${userName} in "${groupName}"`;
         await bot.sendMessage(NOTIFICATION_GROUP_ID, sourceInfo);
 
-        await forwardMessage(bot, NOTIFICATION_GROUP_ID, msg.chat.id, msg.message_id);
+        // Try to forward the message for evidence, but don't fail if it doesn't work
+        const forwardSuccess = await forwardMessage(bot, NOTIFICATION_GROUP_ID, msg.chat.id, msg.message_id);
+        if (!forwardSuccess) {
+            // If forward fails, send the message content as text instead
+            const messageContent = query || buildCombinedAnalysisQuery(msg);
+            const fallbackInfo = `⚠️ Could not forward message (ID: ${msg.message_id})\n\nContent:\n${messageContent.substring(0, 500)}${messageContent.length > 500 ? '...' : ''}`;
+            await bot.sendMessage(NOTIFICATION_GROUP_ID, fallbackInfo);
+        }
 
         const isAdmin = await getIsAdmin(bot, msg.chat.id, senderId);
 
@@ -379,9 +388,19 @@ async function processGroupMessage(msg, bot, ports) {
     }
 
     const query = buildCombinedAnalysisQuery(msg);
-    
+
     console.log(`Built query: length=${query.length}, hasImage=${hasImageMedia(msg)}`);
-    
+
+    // Log full message content to Axiom only (not to local console)
+    logger.axiomOnly('info', 'Group message received', {
+        chatId: msg.chat.id,
+        fromId: msg?.from?.id ?? msg?.sender_chat?.id,
+        messageId: msg.message_id,
+        query: query,
+        hasImage: hasImageMedia(msg),
+        timestamp: new Date().toISOString()
+    });
+
     if (!query.trim() && !hasImageMedia(msg)) {
         console.log('Skip empty message (no text or image)');
         return;

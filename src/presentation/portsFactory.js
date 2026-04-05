@@ -40,6 +40,7 @@ function createPorts(bot) {
         const member = await bot.getChatMember(chatId, userId);
         return member.status !== 'left' && member.status !== 'kicked';
       } catch (error) {
+        console.error(`[hasMember] Failed to check member status: chatId=${chatId}, userId=${userId}, error=${error?.message || String(error)}`);
         if (typeof error?.message === 'string' && error.message.includes('CHAT_ADMIN_REQUIRED')) {
           return false;
         }

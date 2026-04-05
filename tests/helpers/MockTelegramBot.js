@@ -33,6 +33,19 @@ export class MockTelegramBot {
         return true;
     }
 
+    async forwardMessage(toChatId, fromChatId, messageId) {
+        // Mock forwarding - just record the action
+        if (!this.forwardedMessages) {
+            this.forwardedMessages = [];
+        }
+        this.forwardedMessages.push({ toChatId, fromChatId, messageId });
+        return {
+            message_id: Date.now() + Math.random(),
+            chat: { id: toChatId },
+            forward_from_chat: { id: fromChatId },
+        };
+    }
+
     async answerCallbackQuery(callbackQueryId, options = {}) {
         this.answeredCallbacks.push({ callbackQueryId, ...options });
         return true;

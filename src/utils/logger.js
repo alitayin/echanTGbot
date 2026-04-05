@@ -57,6 +57,14 @@ console.warn = (...args) => logger.warn(formatConsoleArgs(...args));
 console.error = (...args) => logger.error(formatConsoleArgs(...args));
 console.debug = (...args) => logger.debug(formatConsoleArgs(...args));
 
+// Helper function to log only to Axiom (not console)
+// Useful for sensitive data like user messages that shouldn't appear in local logs
+logger.axiomOnly = (level, message, meta = {}) => {
+  if (axiomTransport) {
+    axiomTransport.log({ level, message, ...meta }, () => {});
+  }
+};
+
 if (!axiomTransport) {
   logger.warn('Axiom logging disabled: set AXIOM_TOKEN and AXIOM_DATASET to enable it.');
 } else {
