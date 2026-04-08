@@ -1,9 +1,10 @@
 # Ignore sensitive/local files
 .env
 
-# Ignore local docs not to commit
-ARCHITECTURE.md
-LOCAL_PLAN.md
+# Ignore internal documentation (keep README.md only)
+*.md
+!README.md
+.claude/
 
 # Ignore folders not meant for version control
 testscripts/
