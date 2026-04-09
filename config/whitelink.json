@@ -1,12 +1,18 @@
 {
   "whitelistedLinks": [
     "e.cash",
-    "ecash.community",
+    "chronik.e.cash",
     "explorer.e.cash",
-    "avalanche.cash",
     "bitcoinabc.org",
-    "x.com",
-    "twitter.com",
-    "github.com"
+    "github.com",
+    "npmjs.com",
+    "cashtab.com",
+    "paybutton.cash",
+    "stakedxec.com",
+    "firma.cash",
+    "localecash.com",
+    "coingecko.com",
+    "coinmarketcap.com",
+    "crypto.com"
   ]
 }

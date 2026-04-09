@@ -1,7 +1,115 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
+
+const state = vi.hoisted(() => ({
+    trusted: false,
+    whitelistHit: null,
+    spamRecords: new Map(),
+    deleteMessage: vi.fn(async () => true),
+    banUser: vi.fn(async () => true),
+    handleKick: vi.fn(async () => true),
+    handleUnban: vi.fn(async () => true),
+    handleForward: vi.fn(async () => true),
+    getIsAdmin: vi.fn(async () => false),
+    hasImageMedia: vi.fn(() => false),
+    getImageUrls: vi.fn(async () => []),
+    getImageFileId: vi.fn(() => null),
+    isSpamImage: vi.fn(async () => false),
+    addSpamImage: vi.fn(async () => true),
+    isSimilarToSpam: vi.fn(() => false),
+    addSpamMessage: vi.fn(),
+    fetchMessageAnalysis: vi.fn(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 })),
+    fetchMessageAnalysisWithImage: vi.fn(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 })),
+    performSecondarySpamCheck: vi.fn(async () => false),
+    translateToEnglishIfTargetGroup: vi.fn(async () => true),
+    isUserTrustedInGroup: vi.fn(async () => state.trusted),
+    recordNormalMessageInGroup: vi.fn(async () => true),
+    resetNormalMessageStreakInGroup: vi.fn(async () => true),
+}));
+
+vi.mock('../../../src/utils/logger.js', () => ({
+    default: { axiomOnly: vi.fn() },
+}));
+
+vi.mock('../../../src/infrastructure/ai/messageAnalysis.js', () => ({
+    fetchMessageAnalysis: state.fetchMessageAnalysis,
+    fetchMessageAnalysisWithImage: state.fetchMessageAnalysisWithImage,
+}));
+
+vi.mock('../../../src/infrastructure/ai/secondarySpamCheck.js', () => ({
+    performSecondarySpamCheck: state.performSecondarySpamCheck,
+}));
+
+vi.mock('../../../src/infrastructure/ai/translation.js', () => ({
+    translateToEnglishIfTargetGroup: state.translateToEnglishIfTargetGroup,
+}));
+
+vi.mock('../../../src/infrastructure/storage/spamUserStore.js', () => ({
+    updateSpamRecord: vi.fn((userId) => {
+        const existing = state.spamRecords.get(userId) || { count: 0, firstSpamTime: Date.now() };
+        const next = { ...existing, count: existing.count + 1 };
+        state.spamRecords.set(userId, next);
+        return next;
+    }),
+}));
+
+vi.mock('../../../src/infrastructure/storage/spamMessageCache.js', () => ({
+    isSimilarToSpam: state.isSimilarToSpam,
+    addSpamMessage: state.addSpamMessage,
+}));
+
+vi.mock('../../../src/infrastructure/storage/spamImageStore.js', () => ({
+    addSpamImage: state.addSpamImage,
+    isSpamImage: state.isSpamImage,
+}));
+
+vi.mock('../../../src/infrastructure/telegram/adminActions.js', () => ({
+    banUser: state.banUser,
+    kickUser: state.handleKick,
+    unbanUser: state.handleUnban,
+    deleteMessage: state.deleteMessage,
+    forwardMessage: state.handleForward,
+    getIsAdmin: state.getIsAdmin,
+}));
+
+vi.mock('../../../src/infrastructure/telegram/mediaHelper.js', () => ({
+    getImageUrls: state.getImageUrls,
+    hasImageMedia: state.hasImageMedia,
+    getImageFileId: state.getImageFileId,
+}));
+
+vi.mock('../../../src/infrastructure/storage/whitelistKeywordStore.js', () => ({
+    containsWhitelistKeyword: vi.fn(async () => state.whitelistHit),
+}));
+
+vi.mock('../../../src/application/usecases/spamModerationHandler.js', () => ({
+    buildSpamModerationButtons: vi.fn(() => ({})),
+}));
+
+vi.mock('../../../src/domain/utils/englishHighFreq.js', () => ({
+    HIGH_FREQ_WORDS: [],
+}));
+
+vi.mock('../../../src/domain/utils/messageContext.js', () => ({
+    extractReplyMarkupSummary: vi.fn(() => []),
+}));
+
+vi.mock('../../../src/domain/utils/languageDetect.js', () => ({
+    detectNonEnglish: vi.fn(() => ({ shouldCheckWithApi: false, reasons: [], durationMs: 0 })),
+}));
+
+vi.mock('../../../src/domain/utils/text.js', () => ({
+    truncate: vi.fn((value) => value),
+}));
+
+vi.mock('../../../src/infrastructure/storage/normalMessageTracker.js', () => ({
+    isUserTrustedInGroup: state.isUserTrustedInGroup,
+    recordNormalMessageInGroup: state.recordNormalMessageInGroup,
+    resetNormalMessageStreakInGroup: state.resetNormalMessageStreakInGroup,
+}));
+
 const { processGroupMessage, buildCombinedAnalysisQuery } = require('../../../src/application/usecases/spamHandler.js');
 
 describe('spamHandler module exports', () => {
@@ -274,5 +382,181 @@ describe('buildCombinedAnalysisQuery', () => {
         expect(result).toContain('[Quoted]: quoted scam fragment');
         expect(result).toContain('[Replying to @reply_user]: reply caption scam fragment');
         expect(result).toContain('[External quote from "External Scam Channel"]: external caption scam fragment');
+    });
+});
+
+describe('processGroupMessage policy integration', () => {
+    beforeEach(() => {
+        state.trusted = false;
+        state.whitelistHit = null;
+        state.spamRecords = new Map();
+        state.addSpamImage.mockClear();
+        state.banUser.mockClear();
+        state.handleKick.mockClear();
+        state.handleUnban.mockClear();
+        state.handleForward.mockClear();
+        state.getIsAdmin.mockClear();
+        state.hasImageMedia.mockClear();
+        state.hasImageMedia.mockImplementation(() => false);
+        state.getImageUrls.mockClear();
+        state.getImageUrls.mockImplementation(async () => []);
+        state.getImageFileId.mockClear();
+        state.getImageFileId.mockImplementation(() => null);
+        state.isSpamImage.mockClear();
+        state.isSpamImage.mockImplementation(async () => false);
+        state.addSpamImage.mockClear();
+        state.isSimilarToSpam.mockClear();
+        state.isSimilarToSpam.mockImplementation(() => false);
+        state.addSpamMessage.mockClear();
+        state.fetchMessageAnalysis.mockClear();
+        state.fetchMessageAnalysis.mockImplementation(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 }));
+        state.fetchMessageAnalysisWithImage.mockClear();
+        state.fetchMessageAnalysisWithImage.mockImplementation(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 }));
+        state.performSecondarySpamCheck.mockClear();
+        state.performSecondarySpamCheck.mockImplementation(async () => false);
+        state.translateToEnglishIfTargetGroup.mockClear();
+        state.isUserTrustedInGroup.mockClear();
+        state.isUserTrustedInGroup.mockImplementation(async () => state.trusted);
+        state.recordNormalMessageInGroup.mockClear();
+        state.resetNormalMessageStreakInGroup.mockClear();
+    });
+
+    function createBot() {
+        return {
+            getMe: vi.fn(async () => ({ id: 999 })),
+            getChatMember: vi.fn(async (chatId, userId) => ({ status: userId === 999 ? 'administrator' : 'member' })),
+            sendMessage: vi.fn(async () => ({ message_id: 500 })),
+            deleteMessage: vi.fn(async () => true),
+            forwardMessage: vi.fn(async () => true),
+            banChatMember: vi.fn(async () => true),
+            unbanChatMember: vi.fn(async () => true),
+            banChatSenderChat: vi.fn(async () => true),
+        };
+    }
+
+    function createPorts() {
+        return {
+            telegramGroup: {
+                hasMember: vi.fn(async () => true),
+            },
+        };
+    }
+
+    function createMessage(overrides = {}) {
+        return {
+            chat: { id: -1001, type: 'supergroup', title: 'Test Group' },
+            message_id: 42,
+            text: 'hello world',
+            from: { id: 123, first_name: 'Alice', username: 'alice' },
+            ...overrides,
+        };
+    }
+
+    it('warns on first forwarded-message violation for untrusted users', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'forwarded content',
+            forward_from: { username: 'origin' },
+        });
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+        expect(bot.sendMessage).toHaveBeenCalledWith(
+            msg.chat.id,
+            'I removed your message for now because I am not yet confident the linked or quoted content is safe. Please send plain in-group text/photos or approved links until you are trusted in this group.'
+        );
+        expect(state.handleKick).not.toHaveBeenCalled();
+        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('escalates repeat policy violations within 30 minutes via spam deletion path', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const first = createMessage({ text: 'visit https://spam.example', message_id: 100 });
+        const second = createMessage({ text: 'another https://spam.example', message_id: 101 });
+
+        await processGroupMessage(first, bot, ports);
+        await processGroupMessage(second, bot, ports);
+
+        expect(bot.deleteMessage).toHaveBeenCalledWith(second.chat.id, second.message_id);
+        expect(bot.banChatMember).toHaveBeenCalledWith(second.chat.id, second.from.id);
+        expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), second.chat.id, second.message_id);
+    });
+
+    it('allows ordinary reply_to_message for untrusted users', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'thanks',
+            reply_to_message: {
+                text: 'ordinary prior message',
+                from: { username: 'bob' },
+            },
+        });
+        state.whitelistHit = 'thanks';
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
+        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+        expect(state.recordNormalMessageInGroup).not.toHaveBeenCalled();
+    });
+
+    it('blocks non-whitelisted links for untrusted users', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({ text: 'https://x.com/random_user/status/99' });
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('trusted users can post links without being blocked', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        state.trusted = true;
+        const msg = createMessage({ text: 'https://x.com/alitayin/status/1' });
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(state.deleteMessage).not.toHaveBeenCalled();
+        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+        expect(state.translateToEnglishIfTargetGroup).not.toHaveBeenCalled();
+    });
+
+    it('allows statically whitelisted links for untrusted users', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        state.whitelistHit = 'e.cash';
+        const msg = createMessage({ text: 'https://e.cash/build' });
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
+        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('keeps existing blacklisted channel quote behavior', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'look',
+            external_reply: {
+                origin: {
+                    type: 'channel',
+                    chat: { username: 'Insider_SOL_Trades', title: 'Insider SOL Trades' },
+                },
+                text: 'spam content',
+            },
+        });
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), msg.chat.id, msg.message_id);
+        expect(bot.banChatMember).toHaveBeenCalledWith(msg.chat.id, msg.from.id);
     });
 });

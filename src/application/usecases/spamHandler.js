@@ -1,3 +1,5 @@
+const { Level } = require('level');
+const path = require('path');
 const {
     KOUSH_USER_ID,
     ALITAYIN_USER_ID,
@@ -17,8 +19,11 @@ const { isSimilarToSpam, addSpamMessage } = require('../../infrastructure/storag
 const { addSpamImage, isSpamImage } = require('../../infrastructure/storage/spamImageStore.js');
 const { kickUser, unbanUser, deleteMessage, forwardMessage, getIsAdmin } = require('../../infrastructure/telegram/adminActions.js');
 const { getImageUrls, hasImageMedia, getImageFileId } = require('../../infrastructure/telegram/mediaHelper.js');
-const { containsWhitelistKeyword } = require('../../infrastructure/storage/whitelistKeywordStore.js');
+const {
+    containsWhitelistKeyword,
+} = require('../../infrastructure/storage/whitelistKeywordStore.js');
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
+const whitelinkConfig = require('../../../config/whitelink.json');
 const { HIGH_FREQ_WORDS } = require('../../domain/utils/englishHighFreq.js');
 const { extractReplyMarkupSummary } = require('../../domain/utils/messageContext.js');
 const { detectNonEnglish } = require('../../domain/utils/languageDetect.js');
@@ -31,6 +36,16 @@ const {
 
 // Constants
 const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
+const POLICY_VIOLATION_WINDOW_MS = 30 * 60 * 1000;
+const POLICY_VIOLATION_MESSAGE = 'I removed your message for now because I am not yet confident the linked or quoted content is safe. Please send plain in-group text/photos or approved links until you are trusted in this group.';
+const learnedWhitelistDbPath = path.join(__dirname, '../../../data/learnedWhitelistLinks');
+const learnedWhitelistDb = new Level(learnedWhitelistDbPath, { valueEncoding: 'json' });
+const restrictedContentTracker = new Map();
+const STATIC_WHITELIST_HOSTS = new Set(
+    Array.isArray(whitelinkConfig?.whitelistedLinks)
+        ? whitelinkConfig.whitelistedLinks.map((entry) => String(entry).toLowerCase().trim()).filter(Boolean)
+        : []
+);
 
 const {
     isSpamMessage,
@@ -188,6 +203,247 @@ function buildSenderContext(msg) {
     const isFromChannel = !msg.from && msg.sender_chat && msg.sender_chat.type === 'channel';
     const senderId = msg.from ? msg.from.id : (msg.sender_chat ? msg.sender_chat.id : 0);
     return { isFromChannel, senderId };
+}
+
+function normalizeUrl(rawUrl) {
+    try {
+        const parsed = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+        parsed.hash = '';
+        const entries = Array.from(parsed.searchParams.entries())
+            .filter(([key]) => !key.toLowerCase().startsWith('utm_'))
+            .sort(([a], [b]) => a.localeCompare(b));
+        parsed.search = entries.length
+            ? `?${entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`
+            : '';
+        return parsed.toString().replace(/\/$/, '');
+    } catch {
+        return null;
+    }
+}
+
+function getMessageUrls(msg) {
+    const parts = [msg?.text, msg?.caption];
+    if (Array.isArray(msg?.reply_markup?.inline_keyboard)) {
+        for (const row of msg.reply_markup.inline_keyboard) {
+            if (!Array.isArray(row)) continue;
+            for (const button of row) {
+                if (button?.url) parts.push(button.url);
+                if (button?.web_app?.url) parts.push(button.web_app.url);
+                if (button?.login_url?.url) parts.push(button.login_url.url);
+            }
+        }
+    }
+
+    const urls = [];
+    const seen = new Set();
+    const pattern = /(?:https?:\/\/|www\.|t\.me\/|telegram\.me\/)[^\s<>()]+/gi;
+    for (const part of parts) {
+        const text = String(part || '');
+        let match;
+        while ((match = pattern.exec(text)) !== null) {
+            const normalized = normalizeUrl(match[0]);
+            if (normalized && !seen.has(normalized)) {
+                seen.add(normalized);
+                urls.push(normalized);
+            }
+        }
+    }
+    return urls;
+}
+
+function isStaticWhitelistedHost(hostname) {
+    const host = String(hostname || '').toLowerCase();
+    for (const allowedHost of STATIC_WHITELIST_HOSTS) {
+        if (host === allowedHost || host.endsWith(`.${allowedHost}`)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function getLearnedWhitelistEntry(key) {
+    try {
+        return await learnedWhitelistDb.get(key);
+    } catch (error) {
+        if (error.code === 'LEVEL_NOT_FOUND') {
+            return null;
+        }
+        console.error(`Failed to read learned whitelist entry ${key}:`, error);
+        return null;
+    }
+}
+
+async function putLearnedWhitelistEntry(key, value) {
+    try {
+        await learnedWhitelistDb.put(key, value);
+    } catch (error) {
+        console.error(`Failed to store learned whitelist entry ${key}:`, error);
+    }
+}
+
+async function classifyDynamicWhitelist(url) {
+    const normalizedUrl = normalizeUrl(url);
+    if (!normalizedUrl) return null;
+
+    try {
+        const parsed = new URL(normalizedUrl);
+        const host = parsed.hostname.toLowerCase();
+        const firstSegment = parsed.pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
+
+        if ((host === 'x.com' || host === 'twitter.com') && firstSegment) {
+            const entry = await getLearnedWhitelistEntry(`x:${firstSegment}`);
+            return entry ? { type: 'x', value: firstSegment } : null;
+        }
+
+        if ((host === 't.me' || host === 'telegram.me') && firstSegment && !['joinchat', '+'].includes(firstSegment)) {
+            const entry = await getLearnedWhitelistEntry(`telegram:${firstSegment}`);
+            return entry ? { type: 'telegram', value: firstSegment } : null;
+        }
+
+        if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'youtu.be') {
+            const entry = await getLearnedWhitelistEntry(`youtube:${normalizedUrl}`);
+            return entry ? { type: 'youtube', value: normalizedUrl } : null;
+        }
+    } catch (error) {
+        console.error('Failed to classify dynamic whitelist URL:', error);
+    }
+
+    return null;
+}
+
+async function learnTrustedUrl(url, msg) {
+    const normalizedUrl = normalizeUrl(url);
+    if (!normalizedUrl || !msg?.from) return;
+
+    try {
+        const parsed = new URL(normalizedUrl);
+        const host = parsed.hostname.toLowerCase();
+        const firstSegment = parsed.pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
+        const metadata = {
+            chatId: String(msg.chat.id),
+            userId: String(msg.from.id),
+            username: msg.from.username || msg.from.first_name || String(msg.from.id),
+            learnedAt: Date.now(),
+            url: normalizedUrl,
+        };
+
+        if ((host === 'x.com' || host === 'twitter.com') && firstSegment) {
+            await putLearnedWhitelistEntry(`x:${firstSegment}`, { ...metadata, type: 'x', value: firstSegment });
+            return;
+        }
+
+        if ((host === 't.me' || host === 'telegram.me') && firstSegment && !['joinchat', '+'].includes(firstSegment)) {
+            await putLearnedWhitelistEntry(`telegram:${firstSegment}`, { ...metadata, type: 'telegram', value: firstSegment });
+            return;
+        }
+
+        if (host === 'youtube.com' || host === 'www.youtube.com' || host === 'youtu.be') {
+            await putLearnedWhitelistEntry(`youtube:${normalizedUrl}`, { ...metadata, type: 'youtube', value: normalizedUrl });
+        }
+    } catch (error) {
+        console.error('Failed to learn trusted URL:', error);
+    }
+}
+
+function detectPolicyViolation(msg) {
+    if (!msg) {
+        return null;
+    }
+
+    const isForwarded = Boolean(msg.forward_from || msg.forward_sender_name || msg.forward_from_chat);
+    if (isForwarded) {
+        return 'forward';
+    }
+
+    if (msg.quote) {
+        return 'quote';
+    }
+
+    if (msg.external_reply) {
+        return 'external_reply';
+    }
+
+    return null;
+}
+
+async function findBlockedLinks(msg) {
+    const urls = getMessageUrls(msg);
+    const blocked = [];
+
+    for (const url of urls) {
+        try {
+            const parsed = new URL(url);
+            if (isStaticWhitelistedHost(parsed.hostname)) {
+                continue;
+            }
+            const dynamicMatch = await classifyDynamicWhitelist(url);
+            if (dynamicMatch) {
+                continue;
+            }
+            blocked.push(url);
+        } catch {
+            blocked.push(url);
+        }
+    }
+
+    return blocked;
+}
+
+function getRestrictedContentRecordKey(chatId, userId) {
+    return `${String(chatId)}:${String(userId)}`;
+}
+
+function updateRestrictedContentRecord(chatId, userId, reason) {
+    const key = getRestrictedContentRecordKey(chatId, userId);
+    const now = Date.now();
+    const existing = restrictedContentTracker.get(key);
+
+    if (!existing || now - existing.firstViolationAt > POLICY_VIOLATION_WINDOW_MS) {
+        const created = {
+            count: 1,
+            firstViolationAt: now,
+            lastViolationAt: now,
+            reason,
+        };
+        restrictedContentTracker.set(key, created);
+        return created;
+    }
+
+    const next = {
+        ...existing,
+        count: existing.count + 1,
+        lastViolationAt: now,
+        reason,
+    };
+    restrictedContentTracker.set(key, next);
+    return next;
+}
+
+async function handlePolicyViolation(msg, bot, query, reason) {
+    const violationRecord = updateRestrictedContentRecord(msg.chat.id, msg.from.id, reason);
+    await resetNormalMessageStreakInGroup(msg.chat.id, msg.from.id);
+
+    if (violationRecord.count > 1) {
+        await handleSpamDeletion(msg, bot, query, true);
+        return 'escalated';
+    }
+
+    await deleteMessage(bot, msg.chat.id, msg.message_id);
+    await bot.sendMessage(msg.chat.id, POLICY_VIOLATION_MESSAGE).catch((error) => {
+        console.error('Failed to send policy violation warning:', error?.message || error);
+    });
+    return 'warned';
+}
+
+async function maybeLearnTrustedWhitelistEntries(msg) {
+    if (!msg || !msg.from) {
+        return;
+    }
+
+    const urls = getMessageUrls(msg);
+    for (const url of urls) {
+        await learnTrustedUrl(url, msg);
+    }
 }
 
 /**
@@ -465,6 +721,7 @@ async function processGroupMessage(msg, bot, ports) {
         // Trusted users: skip spam checks but still ensure non-English content is translated.
         // Detection only signals the need to consult API; translation happens only after API confirms.
         const detection = detectNonEnglish(msg);
+        await maybeLearnTrustedWhitelistEntries(msg);
         if (detection.shouldCheckWithApi) {
             console.log(`Non-English candidate (trusted path): reasons=${detection.reasons.join('; ')}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, coverageStem=${detection.coverageStem != null ? detection.coverageStem.toFixed(3) : 'n/a'}, len=${detection.length}, detectMs=${detection.durationMs}`);
             try {
@@ -489,6 +746,22 @@ async function processGroupMessage(msg, bot, ports) {
         console.log('Untrusted user shared contact, deleting as spam');
         await handleSpamDeletion(msg, bot, query);
         return;
+    }
+
+    if (!isFromChannel) {
+        const violation = detectPolicyViolation(msg);
+        if (violation) {
+            console.log(`Untrusted user policy violation detected: ${violation}`);
+            await handlePolicyViolation(msg, bot, query, violation);
+            return;
+        }
+
+        const blockedLinks = await findBlockedLinks(msg);
+        if (blockedLinks.length > 0) {
+            console.log(`Untrusted user blocked links detected: ${blockedLinks.join(', ')}`);
+            await handlePolicyViolation(msg, bot, query, 'blocked_link');
+            return;
+        }
     }
 
     // Check if message contains whitelisted keyword
