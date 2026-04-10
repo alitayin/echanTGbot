@@ -1,8 +1,11 @@
 const axios = require('axios');
 const { NOTIFICATION_GROUP_ID } = require('../../../config/config.js');
 
-const REMOTE_PACKAGE_URL = 'https://raw.githubusercontent.com/alitayin/echanTGbot/main/package.json';
-const REPO_URL = 'https://github.com/alitayin/echanTGbot';
+const REPO_OWNER = 'alitayin';
+const REPO_NAME = 'echanTGbot';
+const REMOTE_PACKAGE_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/package.json`;
+const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
+const RELEASE_API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags`;
 const CHECK_INTERVAL_MS = parseInt(process.env.GITHUB_VERSION_CHECK_INTERVAL_MS || String(60 * 60 * 1000));
 
 const localVersion = (() => {
@@ -24,6 +27,42 @@ function isRemoteNewer(local, remote) {
     if (rMaj !== lMaj) return rMaj > lMaj;
     if (rMin !== lMin) return rMin > lMin;
     return rPat > lPat;
+}
+
+function formatReleaseSummary(releaseData, remoteVersion) {
+    const releaseName = releaseData?.name || `Release ${remoteVersion}`;
+    const body = String(releaseData?.body || '').trim();
+    const changeLines = body
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('- '))
+        .slice(0, 8);
+
+    const parts = [
+        `🆕 New version of echanTGbot available!`,
+        '',
+        `Current: v${localVersion}`,
+        `Latest: v${remoteVersion}`,
+        '',
+        `Release: ${releaseName}`,
+    ];
+
+    if (changeLines.length > 0) {
+        parts.push('', 'Changes:', ...changeLines);
+    }
+
+    parts.push('', `${REPO_URL}/releases/tag/v${remoteVersion}`);
+    return parts.join('\n');
+}
+
+async function fetchReleaseData(remoteVersion) {
+    try {
+        const response = await axios.get(`${RELEASE_API_URL}/v${remoteVersion}`, { timeout: 10000 });
+        return response.data || null;
+    } catch (error) {
+        console.warn(`[GithubVersionChecker] Failed to fetch release details for v${remoteVersion}: ${error.message}`);
+        return null;
+    }
 }
 
 class GithubVersionChecker {
@@ -48,11 +87,8 @@ class GithubVersionChecker {
                 isRemoteNewer(localVersion, remoteVersion) &&
                 remoteVersion !== this.lastNotifiedVersion
             ) {
-                const message =
-                    `🆕 New version of echanTGbot available!\n\n` +
-                    `Current: v${localVersion}\n` +
-                    `Latest: v${remoteVersion}\n\n` +
-                    `${REPO_URL}`;
+                const releaseData = await fetchReleaseData(remoteVersion);
+                const message = formatReleaseSummary(releaseData, remoteVersion);
 
                 await this.bot.sendMessage(NOTIFICATION_GROUP_ID, message);
                 this.lastNotifiedVersion = remoteVersion;

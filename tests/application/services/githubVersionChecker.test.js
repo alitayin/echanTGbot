@@ -111,7 +111,9 @@ describe('GithubVersionChecker.check()', () => {
     it('sends again if remote version bumps to an even newer release', async () => {
         axios.get = vi.fn()
             .mockResolvedValueOnce({ data: { version: '99.0.0' } })
-            .mockResolvedValueOnce({ data: { version: '100.0.0' } });
+            .mockResolvedValueOnce({ data: { name: 'Release 99.0.0', body: '' } })
+            .mockResolvedValueOnce({ data: { version: '100.0.0' } })
+            .mockResolvedValueOnce({ data: { name: 'Release 100.0.0', body: '' } });
 
         await checker.check();
         await checker.check();
@@ -134,6 +136,41 @@ describe('GithubVersionChecker.check()', () => {
         expect(bot.sendMessage).not.toHaveBeenCalled();
     });
 
+    it('includes release name and changelog bullets when release details are available', async () => {
+        axios.get = vi.fn()
+            .mockResolvedValueOnce({ data: { version: '99.0.0' } })
+            .mockResolvedValueOnce({
+                data: {
+                    name: 'Release 99.0.0',
+                    body: '## Changes in this Release\n- feat: add thing\n- fix: patch thing\n',
+                },
+            });
+
+        await checker.check();
+
+        expect(bot.sendMessage).toHaveBeenCalledOnce();
+        const [, message] = bot.sendMessage.mock.calls[0];
+        expect(message).toContain('Release: Release 99.0.0');
+        expect(message).toContain('Changes:');
+        expect(message).toContain('- feat: add thing');
+        expect(message).toContain('- fix: patch thing');
+        expect(message).toContain('/releases/tag/v99.0.0');
+    });
+
+    it('falls back to basic release message when release lookup fails', async () => {
+        axios.get = vi.fn()
+            .mockResolvedValueOnce({ data: { version: '99.0.0' } })
+            .mockRejectedValueOnce(new Error('release lookup failed'));
+
+        await checker.check();
+
+        expect(bot.sendMessage).toHaveBeenCalledOnce();
+        const [, message] = bot.sendMessage.mock.calls[0];
+        expect(message).toContain('Latest: v99.0.0');
+        expect(message).toContain('Release: Release 99.0.0');
+        expect(message).not.toContain('Changes:\n-');
+    });
+
     it('handles null response data without throwing', async () => {
         axios.get = vi.fn().mockResolvedValue({ data: null });
 
@@ -141,10 +178,6 @@ describe('GithubVersionChecker.check()', () => {
         expect(bot.sendMessage).not.toHaveBeenCalled();
     });
 });
-
-// ---------------------------------------------------------------------------
-// GithubVersionChecker.start() / stop()
-// ---------------------------------------------------------------------------
 
 describe('GithubVersionChecker lifecycle', () => {
     it('start() calls check() immediately', async () => {
