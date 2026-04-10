@@ -23,6 +23,7 @@ const {
     containsWhitelistKeyword,
 } = require('../../infrastructure/storage/whitelistKeywordStore.js');
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
+const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 const whitelinkConfig = require('../../../config/whitelink.json');
 const { HIGH_FREQ_WORDS } = require('../../domain/utils/englishHighFreq.js');
 const { extractReplyMarkupSummary } = require('../../domain/utils/messageContext.js');
@@ -37,7 +38,7 @@ const {
 // Constants
 const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
 const POLICY_VIOLATION_WINDOW_MS = 30 * 60 * 1000;
-const POLICY_VIOLATION_MESSAGE = 'I removed your message for now because I am not yet confident the linked or quoted content is safe. Please send plain in-group text/photos or approved links until you are trusted in this group.';
+const POLICY_VIOLATION_MESSAGE = 'I removed your message for now because I am not yet confident the linked or quoted content is safe until you are trusted in this group.';
 const learnedWhitelistDbPath = path.join(__dirname, '../../../data/learnedWhitelistLinks');
 const learnedWhitelistDb = new Level(learnedWhitelistDbPath, { valueEncoding: 'json' });
 const restrictedContentTracker = new Map();
@@ -429,7 +430,18 @@ async function handlePolicyViolation(msg, bot, query, reason) {
     }
 
     await deleteMessage(bot, msg.chat.id, msg.message_id);
-    await bot.sendMessage(msg.chat.id, POLICY_VIOLATION_MESSAGE).catch((error) => {
+    const mentionTarget = msg.from?.username
+        ? `@${msg.from.username}`
+        : `<a href="tg://user?id=${msg.from.id}">${msg.from.first_name || 'user'}</a>`;
+    const warningText = `${mentionTarget} ${POLICY_VIOLATION_MESSAGE}`;
+    const forwardSuccess = await forwardMessage(bot, NOTIFICATION_GROUP_ID, msg.chat.id, msg.message_id);
+    if (!forwardSuccess) {
+        const fallbackInfo = `⚠️ Could not forward restricted message (ID: ${msg.message_id})\n\nContent:\n${truncate(query || buildCombinedAnalysisQuery(msg), MAX_FALLBACK_MESSAGE_LENGTH)}`;
+        await bot.sendMessage(NOTIFICATION_GROUP_ID, fallbackInfo).catch(() => {});
+    }
+    await sendPromptMessage(bot, msg.chat.id, warningText, {
+        parse_mode: 'HTML',
+    }).catch((error) => {
         console.error('Failed to send policy violation warning:', error?.message || error);
     });
     return 'warned';

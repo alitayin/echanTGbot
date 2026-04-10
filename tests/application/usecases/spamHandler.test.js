@@ -104,10 +104,8 @@ vi.mock('../../../src/domain/utils/text.js', () => ({
     truncate: vi.fn((value) => value),
 }));
 
-vi.mock('../../../src/infrastructure/storage/normalMessageTracker.js', () => ({
-    isUserTrustedInGroup: state.isUserTrustedInGroup,
-    recordNormalMessageInGroup: state.recordNormalMessageInGroup,
-    resetNormalMessageStreakInGroup: state.resetNormalMessageStreakInGroup,
+vi.mock('../../../src/infrastructure/telegram/promptMessenger.js', () => ({
+    sendPromptMessage: vi.fn(async (bot, chatId, text, options = {}) => bot.sendMessage(chatId, text, options)),
 }));
 
 const { processGroupMessage, buildCombinedAnalysisQuery } = require('../../../src/application/usecases/spamHandler.js');
@@ -463,9 +461,11 @@ describe('processGroupMessage policy integration', () => {
         await processGroupMessage(msg, bot, ports);
 
         expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+        expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), msg.chat.id, msg.message_id);
         expect(bot.sendMessage).toHaveBeenCalledWith(
             msg.chat.id,
-            'I removed your message for now because I am not yet confident the linked or quoted content is safe. Please send plain in-group text/photos or approved links until you are trusted in this group.'
+            '@alice I removed your message for now because I am not yet confident the linked or quoted content is safe until you are trusted in this group.',
+            { parse_mode: 'HTML' }
         );
         expect(state.handleKick).not.toHaveBeenCalled();
         expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
