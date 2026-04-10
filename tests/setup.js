@@ -1,17 +1,31 @@
 // Test setup file - runs before all tests
+import { afterEach, beforeEach, vi } from 'vitest';
 
-// Handle LevelDB unhandled rejections during test teardown
-// These happen when tests close the database while other async operations are pending
-process.on('unhandledRejection', (reason, promise) => {
+const LEVEL_TEARDOWN_PATTERNS = [
+    'LEVEL_DATABASE_NOT_OPEN',
+    'LEVEL_LOCKED',
+    'Database is not open',
+];
+
+function isIgnorableLevelTeardownError(reason) {
     const reasonStr = String(reason);
+    return LEVEL_TEARDOWN_PATTERNS.some(pattern => reasonStr.includes(pattern));
+}
+
+process.on('unhandledRejection', (reason) => {
     // Ignore LevelDB cleanup errors - they're harmless race conditions in test teardown
-    if (
-        reasonStr.includes('LEVEL_DATABASE_NOT_OPEN') ||
-        reasonStr.includes('LEVEL_LOCKED') ||
-        reasonStr.includes('Database is not open')
-    ) {
+    if (isIgnorableLevelTeardownError(reason)) {
         return;
     }
     // Re-throw other unhandled rejections
     throw reason;
+});
+
+beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+});
+
+afterEach(() => {
+    vi.useRealTimers();
 });
