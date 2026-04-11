@@ -1,5 +1,5 @@
 const { banUser, unbanUser } = require('../../infrastructure/telegram/adminActions.js');
-const { markUserTrustedInGroup } = require('../../infrastructure/storage/normalMessageTracker.js');
+const { markUserTrusted } = require('../../infrastructure/storage/normalMessageTracker.js');
 
 function buildSpamModerationButtons({ chatId, userId, showBan = false, showUnban = false }) {
   const buttons = [];
@@ -64,7 +64,7 @@ async function handleSpamModerationCallback(query, bot) {
     } else if (action === 'unban') {
       success = await unbanUser(bot, chatId, userId);
       if (success) {
-        trustedMarked = await markUserTrustedInGroup(chatId, userId, 'manual_unban');
+        trustedMarked = await markUserTrusted(userId, 'manual_unban');
       }
       successText = trustedMarked ? '✅ User unbanned and trusted' : '✅ User unbanned';
       failText = '❌ Failed to unban user (check bot admin rights)';
@@ -128,5 +128,4 @@ module.exports = {
   buildSpamModerationButtons,
   handleSpamModerationCallback,
 };
-
 

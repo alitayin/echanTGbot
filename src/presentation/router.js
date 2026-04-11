@@ -28,6 +28,7 @@ const { handleStoredMessageCommand } = require('../application/usecases/messageH
 const { handleWhitelistCallback } = require('../application/usecases/whitelistHandler.js');
 const { handleMessageCallback } = require('../application/usecases/messageHandler.js');
 const { handleSpamModerationCallback } = require('../application/usecases/spamModerationHandler.js');
+const { recordNewcomerJoin, clearNewcomerJoin } = require('../infrastructure/storage/newcomerTracker.js');
 const { getHelpMenu, helpMenuData } = require('./views/helpMenuData.js');
 const { createCommandRouter, LIMITED_MODE, FEATURE_DISABLED_MSGS } = require('./routes/commandRegistry.js');
 
@@ -117,6 +118,14 @@ function shouldHandleRequest(msg) {
            (textContent.includes(`@${BOT_USERNAME}`) || echanRegex.test(textContent)) ||
            (msg.chat.type === "private") ||
            hasTranslateCommand;
+}
+
+function isActiveChatMemberStatus(status) {
+    return ['member', 'administrator', 'creator', 'restricted'].includes(String(status || '').toLowerCase());
+}
+
+function isInactiveChatMemberStatus(status) {
+    return ['left', 'kicked'].includes(String(status || '').toLowerCase());
 }
 
 function registerRoutes(bot) {
@@ -340,20 +349,70 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 7: check new member usernames
-    bot.on('message', async (msg) => {
-        if (LIMITED_MODE) {
+    // Listener 7: sync newcomer tracking from chat_member updates
+    bot.on('chat_member', async (update) => {
+        const chatId = update?.chat?.id;
+        const userId = update?.new_chat_member?.user?.id;
+        const isBotUser = update?.new_chat_member?.user?.is_bot === true;
+        if (chatId == null || userId == null || isBotUser) {
             return;
         }
 
+        const updateTimestampMs = Number.isFinite(Number(update?.date)) ? Number(update.date) * 1000 : Date.now();
+        const oldStatus = update?.old_chat_member?.status;
+        const newStatus = update?.new_chat_member?.status;
+
+        try {
+            if (isActiveChatMemberStatus(newStatus) && !isActiveChatMemberStatus(oldStatus)) {
+                await recordNewcomerJoin(chatId, userId, updateTimestampMs);
+                return;
+            }
+
+            if (isInactiveChatMemberStatus(newStatus)) {
+                await clearNewcomerJoin(chatId, userId);
+            }
+        } catch (error) {
+            console.error('Failed to sync newcomer tracker from chat_member update:', error);
+        }
+    });
+
+    // Listener 8: check new member usernames
+    bot.on('message', async (msg) => {
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         if (!isGroup) {
             return;
         }
 
+        const serviceTimestampMs = Number.isFinite(Number(msg?.date)) ? Number(msg.date) * 1000 : Date.now();
+
+        if (msg.left_chat_member?.id && msg.left_chat_member.is_bot !== true) {
+            try {
+                await clearNewcomerJoin(msg.chat.id, msg.left_chat_member.id);
+            } catch (error) {
+                console.error('Failed to clear newcomer tracker on left_chat_member:', error);
+            }
+        }
+
         if (msg.new_chat_members && msg.new_chat_members.length > 0) {
             console.log('\n--- New members joined ---');
 
+            for (const newMember of msg.new_chat_members) {
+                if (newMember?.is_bot) {
+                    continue;
+                }
+                try {
+                    await recordNewcomerJoin(msg.chat.id, newMember.id, serviceTimestampMs);
+                } catch (error) {
+                    console.error('Failed to record newcomer join from service message:', error);
+                }
+            }
+        }
+
+        if (LIMITED_MODE) {
+            return;
+        }
+
+        if (msg.new_chat_members && msg.new_chat_members.length > 0) {
             try {
                 const botInfo = await bot.getMe();
                 const botMember = await bot.getChatMember(msg.chat.id, botInfo.id);
@@ -366,6 +425,16 @@ function registerRoutes(bot) {
 
                 const shieldHandled = await handleFloodShieldJoins(bot, msg.chat.id, msg.new_chat_members);
                 if (shieldHandled) {
+                    for (const newMember of msg.new_chat_members) {
+                        if (newMember?.is_bot) {
+                            continue;
+                        }
+                        try {
+                            await clearNewcomerJoin(msg.chat.id, newMember.id);
+                        } catch (error) {
+                            console.error('Failed to clear newcomer tracker after flood shield rejection:', error);
+                        }
+                    }
                     return;
                 }
 
@@ -382,7 +451,7 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 8: group spam detection
+    // Listener 9: group spam detection
     bot.on('message', async (msg) => {
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         if (!isGroup) {
@@ -393,10 +462,19 @@ function registerRoutes(bot) {
             !msg.text &&
             !msg.caption &&
             !msg.reply_to_message &&
+            !msg.quote &&
+            !msg.external_reply &&
             !msg.photo &&
             !msg.sticker &&
             !msg.document &&
-            !msg.animation
+            !msg.animation &&
+            !msg.reply_markup &&
+            !msg.poll &&
+            !msg.contact &&
+            !msg.location &&
+            !msg.venue &&
+            !msg.game &&
+            !msg.dice
         )) {
             return;
         }
@@ -408,7 +486,7 @@ function registerRoutes(bot) {
         await processGroupMessage(msg, bot, ports);
     });
 
-    // Listener 9: anti-impersonation
+    // Listener 10: anti-impersonation
     bot.on('message', async (msg) => {
         if (LIMITED_MODE) {
             return;

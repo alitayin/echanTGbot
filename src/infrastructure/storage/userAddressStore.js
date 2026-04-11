@@ -176,7 +176,7 @@ async function exportAllData() {
         ]);
 
         const exportData = {
-            version: '1.3',
+            version: '1.4',
             exportDate: new Date().toISOString(),
             totalUsers: users.length,
             totalMessages: messages.length,
@@ -357,5 +357,4 @@ module.exports = {
     importAllData,
     closeDB
 };
-
 

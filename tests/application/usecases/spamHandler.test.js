@@ -1,10 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import fs from 'fs';
 import { createRequire } from 'module';
+import os from 'os';
+import path from 'path';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const trackerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spam-handler-trackers-'));
+process.env.NORMAL_MESSAGE_TRACKER_DB_PATH = path.join(trackerDir, 'normalMessageTracker');
+process.env.NEWCOMER_TRACKER_DB_PATH = path.join(trackerDir, 'newcomerTracker');
 
 const require = createRequire(import.meta.url);
 
 const state = vi.hoisted(() => ({
     trusted: false,
+    restrictedNewcomer: false,
     whitelistHit: null,
     spamRecords: new Map(),
     deleteMessage: vi.fn(async () => true),
@@ -24,9 +32,10 @@ const state = vi.hoisted(() => ({
     fetchMessageAnalysisWithImage: vi.fn(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 })),
     performSecondarySpamCheck: vi.fn(async () => false),
     translateToEnglishIfTargetGroup: vi.fn(async () => true),
-    isUserTrustedInGroup: vi.fn(async () => state.trusted),
-    recordNormalMessageInGroup: vi.fn(async () => true),
-    resetNormalMessageStreakInGroup: vi.fn(async () => true),
+    isUserTrusted: vi.fn(async () => state.trusted),
+    isUserRestrictedNewcomer: vi.fn(async () => state.restrictedNewcomer),
+    recordNormalMessage: vi.fn(async () => true),
+    resetNormalMessageStreak: vi.fn(async () => true),
 }));
 
 vi.mock('../../../src/utils/logger.js', () => ({
@@ -109,6 +118,8 @@ vi.mock('../../../src/infrastructure/telegram/promptMessenger.js', () => ({
 }));
 
 const { processGroupMessage, buildCombinedAnalysisQuery } = require('../../../src/application/usecases/spamHandler.js');
+const { markUserTrusted, resetNormalMessageStreak } = require('../../../src/infrastructure/storage/normalMessageTracker.js');
+const { recordNewcomerJoin, clearNewcomerJoin } = require('../../../src/infrastructure/storage/newcomerTracker.js');
 
 describe('spamHandler module exports', () => {
     it('exports processGroupMessage', () => {
@@ -384,8 +395,9 @@ describe('buildCombinedAnalysisQuery', () => {
 });
 
 describe('processGroupMessage policy integration', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         state.trusted = false;
+        state.restrictedNewcomer = false;
         state.whitelistHit = null;
         state.spamRecords = new Map();
         state.addSpamImage.mockClear();
@@ -413,10 +425,15 @@ describe('processGroupMessage policy integration', () => {
         state.performSecondarySpamCheck.mockClear();
         state.performSecondarySpamCheck.mockImplementation(async () => false);
         state.translateToEnglishIfTargetGroup.mockClear();
-        state.isUserTrustedInGroup.mockClear();
-        state.isUserTrustedInGroup.mockImplementation(async () => state.trusted);
-        state.recordNormalMessageInGroup.mockClear();
-        state.resetNormalMessageStreakInGroup.mockClear();
+        state.isUserTrusted.mockClear();
+        state.isUserTrusted.mockImplementation(async () => state.trusted);
+        state.isUserRestrictedNewcomer.mockClear();
+        state.isUserRestrictedNewcomer.mockImplementation(async () => state.restrictedNewcomer);
+        state.recordNormalMessage.mockClear();
+        state.resetNormalMessageStreak.mockClear();
+
+        await clearNewcomerJoin('-1001', '123');
+        await resetNormalMessageStreak('123');
     });
 
     function createBot() {
@@ -450,13 +467,14 @@ describe('processGroupMessage policy integration', () => {
         };
     }
 
-    it('warns on first forwarded-message violation for untrusted users', async () => {
+    it('warns on first forwarded-channel violation for restricted newcomers', async () => {
         const bot = createBot();
         const ports = createPorts();
         const msg = createMessage({
             text: 'forwarded content',
-            forward_from: { username: 'origin' },
+            forward_from_chat: { id: -2000, type: 'channel', title: 'Origin Channel' },
         });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
 
         await processGroupMessage(msg, bot, ports);
 
@@ -464,18 +482,18 @@ describe('processGroupMessage policy integration', () => {
         expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), msg.chat.id, msg.message_id);
         expect(bot.sendMessage).toHaveBeenCalledWith(
             msg.chat.id,
-            '@alice I removed your message for now because I am not yet confident the linked or quoted content is safe until you are trusted in this group.',
+            '@alice I removed your message because new members cannot forward messages from channels or other groups, send non-whitelisted links, or post inline buttons during their first hour in this group.',
             { parse_mode: 'HTML' }
         );
-        expect(state.handleKick).not.toHaveBeenCalled();
-        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+        expect(bot.banChatMember).not.toHaveBeenCalled();
     });
 
-    it('escalates repeat policy violations within 30 minutes via spam deletion path', async () => {
+    it('escalates repeat newcomer policy violations within 30 minutes via spam deletion path', async () => {
         const bot = createBot();
         const ports = createPorts();
         const first = createMessage({ text: 'visit https://spam.example', message_id: 100 });
         const second = createMessage({ text: 'another https://spam.example', message_id: 101 });
+        await recordNewcomerJoin(first.chat.id, first.from.id, Date.now());
 
         await processGroupMessage(first, bot, ports);
         await processGroupMessage(second, bot, ports);
@@ -485,7 +503,7 @@ describe('processGroupMessage policy integration', () => {
         expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), second.chat.id, second.message_id);
     });
 
-    it('allows ordinary reply_to_message for untrusted users', async () => {
+    it('allows ordinary reply_to_message for restricted newcomers', async () => {
         const bot = createBot();
         const ports = createPorts();
         const msg = createMessage({
@@ -495,49 +513,91 @@ describe('processGroupMessage policy integration', () => {
                 from: { username: 'bob' },
             },
         });
-        state.whitelistHit = 'thanks';
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
 
         await processGroupMessage(msg, bot, ports);
 
         expect(bot.deleteMessage).not.toHaveBeenCalled();
-        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
-        expect(state.recordNormalMessageInGroup).not.toHaveBeenCalled();
     });
 
-    it('blocks non-whitelisted links for untrusted users', async () => {
+    it('allows quoted messages for restricted newcomers', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'see above',
+            quote: {
+                text: 'quoted message',
+                origin: {
+                    type: 'channel',
+                    chat: { username: 'harmless_channel', title: 'Harmless Channel' },
+                },
+            },
+        });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
+    });
+
+    it('blocks non-whitelisted links for restricted newcomers', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({ text: 'https://x.com/random_user/status/99' });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+    });
+
+    it('blocks inline keyboard buttons for restricted newcomers', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'claim now',
+            reply_markup: {
+                inline_keyboard: [[{ text: 'Open', url: 'https://spam.example' }]],
+            },
+        });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+    });
+
+    it('trusted users can post links even if they are newly joined', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({ text: 'https://x.com/alitayin/status/1' });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
+        await markUserTrusted(msg.from.id, 'test');
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not apply newcomer link restrictions when join time is unknown or expired', async () => {
         const bot = createBot();
         const ports = createPorts();
         const msg = createMessage({ text: 'https://x.com/random_user/status/99' });
 
         await processGroupMessage(msg, bot, ports);
 
-        expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
-        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
     });
 
-    it('trusted users can post links without being blocked', async () => {
+    it('allows statically whitelisted links for restricted newcomers', async () => {
         const bot = createBot();
         const ports = createPorts();
-        state.trusted = true;
-        const msg = createMessage({ text: 'https://x.com/alitayin/status/1' });
-
-        await processGroupMessage(msg, bot, ports);
-
-        expect(state.deleteMessage).not.toHaveBeenCalled();
-        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
-        expect(state.translateToEnglishIfTargetGroup).not.toHaveBeenCalled();
-    });
-
-    it('allows statically whitelisted links for untrusted users', async () => {
-        const bot = createBot();
-        const ports = createPorts();
-        state.whitelistHit = 'e.cash';
         const msg = createMessage({ text: 'https://e.cash/build' });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
 
         await processGroupMessage(msg, bot, ports);
 
         expect(bot.deleteMessage).not.toHaveBeenCalled();
-        expect(state.fetchMessageAnalysis).not.toHaveBeenCalled();
     });
 
     it('keeps existing blacklisted channel quote behavior', async () => {

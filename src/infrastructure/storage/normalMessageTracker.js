@@ -1,19 +1,19 @@
-// Persisted tracker for users' normal message streaks in each group.
-// Keyed by `${chatId}:${userId}`.
-// When a user in a group has a configured number of consecutive normal messages,
-// they are treated as "trusted" and group spam detection can be skipped for them.
+// Persisted tracker for users' normal message streaks globally.
+// Keyed by `userId`.
+// When a user reaches the configured number of consecutive normal messages
+// in any group, they are treated as "trusted" across all groups.
 
 const { Level } = require('level');
 const path = require('path');
 const { NORMAL_STREAK_THRESHOLD } = require('../../../config/config.js');
 
-const dbPath = path.join(__dirname, '../../../data/normalMessageTracker');
+const dbPath = process.env.NORMAL_MESSAGE_TRACKER_DB_PATH || path.join(__dirname, '../../../data/normalMessageTracker');
 const db = new Level(dbPath, { valueEncoding: 'json' });
 
 /**
  * @typedef {Object} NormalMessageRecord
  * @property {number} streak - Current consecutive normal message count
- * @property {boolean} trusted - Whether the user is considered trusted in this group
+ * @property {boolean} trusted - Whether the user is globally trusted
  * @property {number} lastUpdated - Timestamp of the last update
  */
 
@@ -22,22 +22,60 @@ const normalMessageTracker = new Map();
 
 let loadPromise = null;
 
-async function ensureLoaded() {
-    if (!loadPromise) {
-        loadPromise = (async () => {
-            try {
-                for await (const [key, value] of db.iterator()) {
-                    if (value && typeof value === 'object') {
-                        normalMessageTracker.set(key, value);
-                    }
-                }
-                console.log(`Loaded ${normalMessageTracker.size} normal message records from DB`);
-            } catch (err) {
-                console.error('Failed to load normal message tracker DB:', err);
-            }
-        })();
+function makeKey(userId) {
+    return String(userId);
+}
+
+function parseTrackerKey(rawKey) {
+    const key = String(rawKey || '');
+    if (!key) {
+        return null;
     }
-    return loadPromise;
+
+    const parts = key.split(':');
+    if (parts.length === 1) {
+        return { userId: parts[0], legacy: false };
+    }
+
+    if (parts.length === 2 && parts[1]) {
+        return { userId: parts[1], legacy: true };
+    }
+
+    return null;
+}
+
+function normalizeRecord(record) {
+    if (!record || typeof record !== 'object') {
+        return null;
+    }
+
+    const streakValue = Number(record.streak);
+    const lastUpdatedValue = Number(record.lastUpdated);
+
+    return {
+        streak: Number.isFinite(streakValue) && streakValue >= 0 ? streakValue : 0,
+        trusted: record.trusted === true,
+        lastUpdated: Number.isFinite(lastUpdatedValue) ? lastUpdatedValue : Date.now(),
+    };
+}
+
+function mergeRecords(existing, incoming) {
+    const base = normalizeRecord(existing) || {
+        streak: 0,
+        trusted: false,
+        lastUpdated: 0,
+    };
+    const next = normalizeRecord(incoming) || {
+        streak: 0,
+        trusted: false,
+        lastUpdated: 0,
+    };
+
+    return {
+        streak: Math.max(base.streak, next.streak),
+        trusted: base.trusted || next.trusted,
+        lastUpdated: Math.max(base.lastUpdated, next.lastUpdated),
+    };
 }
 
 async function persistRecord(key, record) {
@@ -58,36 +96,83 @@ async function deleteRecord(key) {
     }
 }
 
-function makeKey(chatId, userId) {
-    return `${String(chatId)}:${String(userId)}`;
+async function migrateLegacyRecords(aggregatedRecords, legacyKeys) {
+    for (const legacyKey of legacyKeys) {
+        await deleteRecord(legacyKey);
+    }
+
+    for (const [key, record] of aggregatedRecords.entries()) {
+        await persistRecord(key, record);
+    }
+
+    console.log(`Migrated ${legacyKeys.length} legacy trusted record(s) to global format`);
+}
+
+async function ensureLoaded() {
+    if (!loadPromise) {
+        loadPromise = (async () => {
+            try {
+                const aggregatedRecords = new Map();
+                const legacyKeys = [];
+
+                for await (const [rawKey, value] of db.iterator()) {
+                    const parsedKey = parseTrackerKey(rawKey);
+                    const normalizedRecord = normalizeRecord(value);
+                    if (!parsedKey || !normalizedRecord) {
+                        continue;
+                    }
+
+                    const userKey = makeKey(parsedKey.userId);
+                    const mergedRecord = mergeRecords(aggregatedRecords.get(userKey), normalizedRecord);
+                    aggregatedRecords.set(userKey, mergedRecord);
+
+                    if (parsedKey.legacy) {
+                        legacyKeys.push(String(rawKey));
+                    }
+                }
+
+                normalMessageTracker.clear();
+                for (const [key, record] of aggregatedRecords.entries()) {
+                    normalMessageTracker.set(key, record);
+                }
+
+                console.log(`Loaded ${normalMessageTracker.size} normal message records from DB`);
+
+                if (legacyKeys.length > 0) {
+                    await migrateLegacyRecords(aggregatedRecords, legacyKeys);
+                }
+            } catch (err) {
+                console.error('Failed to load normal message tracker DB:', err);
+            }
+        })();
+    }
+    return loadPromise;
 }
 
 /**
- * Check if a user is trusted in a specific group.
- * @param {number|string} chatId
+ * Check if a user is globally trusted.
  * @param {number|string} userId
  * @returns {Promise<boolean>}
  */
-async function isUserTrustedInGroup(chatId, userId) {
+async function isUserTrusted(userId) {
     await ensureLoaded();
-    if (chatId == null || userId == null) return false;
-    const key = makeKey(chatId, userId);
+    if (userId == null) return false;
+    const key = makeKey(userId);
     const record = normalMessageTracker.get(key);
     return Boolean(record && record.trusted === true);
 }
 
 /**
- * Record a normal (non-spam) message for a user in a group.
- * Increments the consecutive normal message streak and marks the user as trusted
- * once the threshold is reached.
- * @param {number|string} chatId
+ * Record a normal (non-spam) message for a user.
+ * Increments the user's global consecutive normal message streak and marks the
+ * user as trusted once the threshold is reached.
  * @param {number|string} userId
  * @returns {Promise<NormalMessageRecord>}
  */
-async function recordNormalMessageInGroup(chatId, userId) {
+async function recordNormalMessage(userId) {
     await ensureLoaded();
-    if (chatId == null || userId == null) return null;
-    const key = makeKey(chatId, userId);
+    if (userId == null) return null;
+    const key = makeKey(userId);
     const now = Date.now();
 
     const existing = normalMessageTracker.get(key) || {
@@ -96,7 +181,6 @@ async function recordNormalMessageInGroup(chatId, userId) {
         lastUpdated: now,
     };
 
-    // If already trusted, just refresh timestamp
     if (existing.trusted) {
         existing.lastUpdated = now;
         normalMessageTracker.set(key, existing);
@@ -109,9 +193,7 @@ async function recordNormalMessageInGroup(chatId, userId) {
 
     if (existing.streak >= NORMAL_STREAK_THRESHOLD) {
         existing.trusted = true;
-        console.log(
-            `User ${userId} in chat ${chatId} reached normal streak ${existing.streak}, marked as trusted`
-        );
+        console.log(`User ${userId} reached normal streak ${existing.streak}, marked as globally trusted`);
     }
 
     normalMessageTracker.set(key, existing);
@@ -120,15 +202,14 @@ async function recordNormalMessageInGroup(chatId, userId) {
 }
 
 /**
- * Reset the normal message streak for a user in a group.
+ * Reset the global normal message streak for a user.
  * This can be called when spam is detected to require the user to rebuild trust.
- * @param {number|string} chatId
  * @param {number|string} userId
  */
-async function resetNormalMessageStreakInGroup(chatId, userId) {
+async function resetNormalMessageStreak(userId) {
     await ensureLoaded();
-    if (chatId == null || userId == null) return;
-    const key = makeKey(chatId, userId);
+    if (userId == null) return;
+    const key = makeKey(userId);
     const existing = normalMessageTracker.get(key);
     if (!existing) return;
 
@@ -143,16 +224,15 @@ async function resetNormalMessageStreakInGroup(chatId, userId) {
 }
 
 /**
- * Mark a user as trusted in a specific group (manual override).
- * @param {number|string} chatId
+ * Mark a user as globally trusted (manual override).
  * @param {number|string} userId
  * @param {string} reason
  * @returns {Promise<boolean>}
  */
-async function markUserTrustedInGroup(chatId, userId, reason = 'manual') {
+async function markUserTrusted(userId, reason = 'manual') {
     await ensureLoaded();
-    if (chatId == null || userId == null) return false;
-    const key = makeKey(chatId, userId);
+    if (userId == null) return false;
+    const key = makeKey(userId);
     const now = Date.now();
     const existing = normalMessageTracker.get(key);
     const streakValue = existing && Number.isFinite(Number(existing.streak))
@@ -165,40 +245,36 @@ async function markUserTrustedInGroup(chatId, userId, reason = 'manual') {
     };
     normalMessageTracker.set(key, updated);
     await persistRecord(key, updated);
-    console.log(`User ${userId} in chat ${chatId} marked as trusted (reason: ${reason})`);
+    console.log(`User ${userId} marked as globally trusted (reason: ${reason})`);
     return true;
 }
 
 /**
- * Export all trusted tracker records for backup.
- * @returns {Promise<Array<{chatId: string, userId: string, streak: number, trusted: boolean, lastUpdated: number}>>}
+ * Export all tracker records for backup.
+ * @returns {Promise<Array<{userId: string, streak: number, trusted: boolean, lastUpdated: number}>>}
  */
 async function exportTrustedRecords() {
     await ensureLoaded();
     const records = [];
-    for (const [key, record] of normalMessageTracker.entries()) {
-        if (!record || typeof record !== 'object') {
+    for (const [userId, record] of normalMessageTracker.entries()) {
+        const normalizedRecord = normalizeRecord(record);
+        if (!normalizedRecord) {
             continue;
         }
-        const [chatId, userId] = String(key).split(':');
-        if (!chatId || !userId) {
-            continue;
-        }
-        const streakValue = Number(record.streak);
-        const lastUpdatedValue = Number(record.lastUpdated);
+
         records.push({
-            chatId,
             userId,
-            streak: Number.isFinite(streakValue) && streakValue >= 0 ? streakValue : 0,
-            trusted: record.trusted === true,
-            lastUpdated: Number.isFinite(lastUpdatedValue) ? lastUpdatedValue : Date.now(),
+            streak: normalizedRecord.streak,
+            trusted: normalizedRecord.trusted,
+            lastUpdated: normalizedRecord.lastUpdated,
         });
     }
     return records;
 }
 
 /**
- * Import trusted tracker records from backup.
+ * Import tracker records from backup.
+ * Accepts both the current global format and the legacy group-scoped format.
  * @param {Array} records
  * @returns {Promise<{success: number, failed: number, errors: Array<string>}>}
  */
@@ -208,30 +284,39 @@ async function importTrustedRecords(records) {
     if (!Array.isArray(records)) {
         return results;
     }
+
+    const aggregatedImports = new Map();
+
     for (const record of records) {
         try {
-            if (!record || record.chatId == null || record.userId == null) {
+            if (!record || record.userId == null) {
                 results.failed += 1;
-                results.errors.push(`Missing chatId or userId for record: ${JSON.stringify(record)}`);
+                results.errors.push(`Missing userId for record: ${JSON.stringify(record)}`);
                 continue;
             }
-            const key = makeKey(record.chatId, record.userId);
-            const streakValue = Number(record.streak);
-            const lastUpdatedValue = Number(record.lastUpdated);
-            const data = {
-                streak: Number.isFinite(streakValue) && streakValue >= 0 ? streakValue : 0,
-                trusted: record.trusted === true,
-                lastUpdated: Number.isFinite(lastUpdatedValue) ? lastUpdatedValue : Date.now(),
-            };
-            normalMessageTracker.set(key, data);
-            await persistRecord(key, data);
-            results.success += 1;
+
+            const key = makeKey(record.userId);
+            const normalizedRecord = normalizeRecord(record);
+            if (!normalizedRecord) {
+                results.failed += 1;
+                results.errors.push(`Invalid trusted record: ${JSON.stringify(record)}`);
+                continue;
+            }
+
+            aggregatedImports.set(key, mergeRecords(aggregatedImports.get(key), normalizedRecord));
         } catch (error) {
             results.failed += 1;
             results.errors.push(`Failed to import trusted record: ${error.message}`);
             console.error('❌ Failed to import trusted record:', error);
         }
     }
+
+    for (const [key, data] of aggregatedImports.entries()) {
+        normalMessageTracker.set(key, data);
+        await persistRecord(key, data);
+        results.success += 1;
+    }
+
     return results;
 }
 
@@ -253,12 +338,10 @@ setInterval(async () => {
 
 module.exports = {
     NORMAL_STREAK_THRESHOLD,
-    isUserTrustedInGroup,
-    recordNormalMessageInGroup,
-    resetNormalMessageStreakInGroup,
-    markUserTrustedInGroup,
+    isUserTrusted,
+    recordNormalMessage,
+    resetNormalMessageStreak,
+    markUserTrusted,
     exportTrustedRecords,
     importTrustedRecords,
 };
-
-

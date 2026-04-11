@@ -2,7 +2,10 @@
  * Comprehensive spam detection tests covering various spam patterns
  * Tests forwarded messages, channel posts, external replies, and combinations
  */
+import { createRequire } from 'module';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const require = createRequire(import.meta.url);
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -19,6 +22,23 @@ vi.mock('../../../src/infrastructure/telegram/mediaHelper.js', () => ({
     getImageFileId: vi.fn().mockReturnValue(null),
 }));
 
+vi.mock('../../../src/infrastructure/storage/normalMessageTracker.js', () => ({
+    isUserTrusted: vi.fn().mockResolvedValue(false),
+    recordNormalMessage: vi.fn().mockResolvedValue(undefined),
+    resetNormalMessageStreak: vi.fn().mockResolvedValue(undefined),
+    markUserTrusted: vi.fn().mockResolvedValue(true),
+    exportTrustedRecords: vi.fn().mockResolvedValue([]),
+    importTrustedRecords: vi.fn().mockResolvedValue({ success: 0, failed: 0, errors: [] }),
+    NORMAL_STREAK_THRESHOLD: 3,
+}));
+
+vi.mock('../../../src/infrastructure/storage/newcomerTracker.js', () => ({
+    NEWCOMER_RESTRICTION_WINDOW_MS: 60 * 60 * 1000,
+    recordNewcomerJoin: vi.fn().mockResolvedValue(undefined),
+    clearNewcomerJoin: vi.fn().mockResolvedValue(undefined),
+    isUserRestrictedNewcomer: vi.fn().mockResolvedValue(false),
+}));
+
 vi.mock('../../../src/domain/utils/messageContext.js', () => ({
     extractReplyMarkupSummary: vi.fn().mockReturnValue([]),
 }));
@@ -27,7 +47,7 @@ vi.mock('../../../src/domain/utils/messageContext.js', () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import { buildCombinedAnalysisQuery } from '../../../src/application/usecases/spamHandler.js';
+const { buildCombinedAnalysisQuery } = require('../../../src/application/usecases/spamHandler.js');
 
 // ---------------------------------------------------------------------------
 // Test helpers

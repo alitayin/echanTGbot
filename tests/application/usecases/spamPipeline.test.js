@@ -24,10 +24,20 @@ vi.mock('../../../src/infrastructure/ai/translation.js', () => ({
 }));
 
 vi.mock('../../../src/infrastructure/storage/normalMessageTracker.js', () => ({
-    isUserTrustedInGroup: vi.fn().mockResolvedValue(false),
-    recordNormalMessageInGroup: vi.fn().mockResolvedValue(undefined),
-    resetNormalMessageStreakInGroup: vi.fn().mockResolvedValue(undefined),
+    isUserTrusted: vi.fn().mockResolvedValue(false),
+    recordNormalMessage: vi.fn().mockResolvedValue(undefined),
+    resetNormalMessageStreak: vi.fn().mockResolvedValue(undefined),
+    markUserTrusted: vi.fn().mockResolvedValue(true),
+    exportTrustedRecords: vi.fn().mockResolvedValue([]),
+    importTrustedRecords: vi.fn().mockResolvedValue({ success: 0, failed: 0, errors: [] }),
     NORMAL_STREAK_THRESHOLD: 3,
+}));
+
+vi.mock('../../../src/infrastructure/storage/newcomerTracker.js', () => ({
+    NEWCOMER_RESTRICTION_WINDOW_MS: 60 * 60 * 1000,
+    recordNewcomerJoin: vi.fn().mockResolvedValue(undefined),
+    clearNewcomerJoin: vi.fn().mockResolvedValue(undefined),
+    isUserRestrictedNewcomer: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock('../../../src/infrastructure/storage/whitelistKeywordStore.js', () => ({

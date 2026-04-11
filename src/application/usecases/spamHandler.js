@@ -30,15 +30,16 @@ const { extractReplyMarkupSummary } = require('../../domain/utils/messageContext
 const { detectNonEnglish } = require('../../domain/utils/languageDetect.js');
 const { truncate } = require('../../domain/utils/text.js');
 const {
-    isUserTrustedInGroup,
-    recordNormalMessageInGroup,
-    resetNormalMessageStreakInGroup,
+    isUserTrusted,
+    recordNormalMessage,
+    resetNormalMessageStreak,
 } = require('../../infrastructure/storage/normalMessageTracker.js');
+const { isUserRestrictedNewcomer } = require('../../infrastructure/storage/newcomerTracker.js');
 
 // Constants
 const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
 const POLICY_VIOLATION_WINDOW_MS = 30 * 60 * 1000;
-const POLICY_VIOLATION_MESSAGE = 'I removed your message for now because I am not yet confident the linked or quoted content is safe until you are trusted in this group.';
+const POLICY_VIOLATION_MESSAGE = 'I removed your message because new members cannot forward messages from channels or other groups, send non-whitelisted links, or post inline buttons during their first hour in this group.';
 const learnedWhitelistDbPath = path.join(__dirname, '../../../data/learnedWhitelistLinks');
 const learnedWhitelistDb = new Level(learnedWhitelistDbPath, { valueEncoding: 'json' });
 const restrictedContentTracker = new Map();
@@ -346,22 +347,46 @@ async function learnTrustedUrl(url, msg) {
     }
 }
 
-function detectPolicyViolation(msg) {
+function hasInlineButtons(msg) {
+    return Array.isArray(msg?.reply_markup?.inline_keyboard) &&
+        msg.reply_markup.inline_keyboard.some((row) => Array.isArray(row) && row.length > 0);
+}
+
+function getForwardedChatType(msg) {
+    const forwardFromChatType = String(msg?.forward_from_chat?.type || '').toLowerCase();
+    if (forwardFromChatType) {
+        return forwardFromChatType;
+    }
+
+    const forwardOriginType = String(msg?.forward_origin?.type || '').toLowerCase();
+    if (forwardOriginType === 'channel') {
+        return 'channel';
+    }
+
+    if (forwardOriginType === 'chat') {
+        const originChatType = String(msg?.forward_origin?.chat?.type || '').toLowerCase();
+        return originChatType || 'chat';
+    }
+
+    return null;
+}
+
+function detectNewcomerPolicyViolation(msg) {
     if (!msg) {
         return null;
     }
 
-    const isForwarded = Boolean(msg.forward_from || msg.forward_sender_name || msg.forward_from_chat);
-    if (isForwarded) {
-        return 'forward';
+    const forwardedChatType = getForwardedChatType(msg);
+    if (forwardedChatType === 'channel') {
+        return 'channel_forward';
     }
 
-    if (msg.quote) {
-        return 'quote';
+    if (forwardedChatType === 'group' || forwardedChatType === 'supergroup' || forwardedChatType === 'chat') {
+        return 'group_forward';
     }
 
-    if (msg.external_reply) {
-        return 'external_reply';
+    if (hasInlineButtons(msg)) {
+        return 'inline_buttons';
     }
 
     return null;
@@ -422,7 +447,7 @@ function updateRestrictedContentRecord(chatId, userId, reason) {
 
 async function handlePolicyViolation(msg, bot, query, reason) {
     const violationRecord = updateRestrictedContentRecord(msg.chat.id, msg.from.id, reason);
-    await resetNormalMessageStreakInGroup(msg.chat.id, msg.from.id);
+    await resetNormalMessageStreak(msg.from.id);
 
     if (violationRecord.count > 1) {
         await handleSpamDeletion(msg, bot, query, true);
@@ -724,11 +749,11 @@ async function processGroupMessage(msg, bot, ports) {
     }
 
     // Channels are never "trusted" - always check them for spam
-    // If user has already built enough normal-message history in this group,
+    // If user has already built enough normal-message history anywhere,
     // skip further spam detection for better UX.
-    if (!isFromChannel && await isUserTrustedInGroup(msg.chat.id, msg.from.id)) {
+    if (!isFromChannel && await isUserTrusted(msg.from.id)) {
         console.log(
-            `User ${msg.from.id} in chat ${msg.chat.id} is trusted (>= normal streak threshold), skipping spam detection`
+            `User ${msg.from.id} is globally trusted (>= normal streak threshold), skipping spam detection`
         );
         // Trusted users: skip spam checks but still ensure non-English content is translated.
         // Detection only signals the need to consult API; translation happens only after API confirms.
@@ -753,26 +778,24 @@ async function processGroupMessage(msg, bot, ports) {
         return;
     }
 
-    // Treat contact shares from untrusted users as spam
-    if (!isFromChannel && msg?.contact) {
-        console.log('Untrusted user shared contact, deleting as spam');
-        await handleSpamDeletion(msg, bot, query);
-        return;
-    }
-
     if (!isFromChannel) {
-        const violation = detectPolicyViolation(msg);
-        if (violation) {
-            console.log(`Untrusted user policy violation detected: ${violation}`);
-            await handlePolicyViolation(msg, bot, query, violation);
-            return;
-        }
+        const isRestrictedNewcomer = await isUserRestrictedNewcomer(msg.chat.id, msg.from.id);
+        if (isRestrictedNewcomer) {
+            console.log(`User ${msg.from.id} is within the newcomer restriction window in chat ${msg.chat.id}`);
 
-        const blockedLinks = await findBlockedLinks(msg);
-        if (blockedLinks.length > 0) {
-            console.log(`Untrusted user blocked links detected: ${blockedLinks.join(', ')}`);
-            await handlePolicyViolation(msg, bot, query, 'blocked_link');
-            return;
+            const violation = detectNewcomerPolicyViolation(msg);
+            if (violation) {
+                console.log(`Restricted newcomer policy violation detected: ${violation}`);
+                await handlePolicyViolation(msg, bot, query, violation);
+                return;
+            }
+
+            const blockedLinks = await findBlockedLinks(msg);
+            if (blockedLinks.length > 0) {
+                console.log(`Restricted newcomer blocked links detected: ${blockedLinks.join(', ')}`);
+                await handlePolicyViolation(msg, bot, query, 'blocked_link');
+                return;
+            }
         }
     }
 
@@ -805,14 +828,14 @@ async function processGroupMessage(msg, bot, ports) {
         if (wasSpam) {
             // If spam is detected, reset the user's normal-message streak (only for users, not channels)
             if (!isFromChannel) {
-                await resetNormalMessageStreakInGroup(msg.chat.id, msg.from.id);
+                await resetNormalMessageStreak(msg.from.id);
             }
             return;
         }
 
         // Non-spam message from a human user in group: record as normal (only for users, not channels)
         if (!isFromChannel) {
-            await recordNormalMessageInGroup(msg.chat.id, msg.from.id);
+            await recordNormalMessage(msg.from.id);
         }
 
         // Non-trusted users: rely solely on the API's is_english flag, not local heuristics
