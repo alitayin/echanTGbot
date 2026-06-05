@@ -36,13 +36,25 @@ MNEMONIC="your twelve word mnemonic phrase"
 ALLOWED_USERS=username1,username2
 
 
+# Logging
+LOG_LEVEL=info              # optional, defaults to info
+LOCAL_LOG_ENABLED=true      # optional, defaults to true
+LOG_DIR=logs                # optional, defaults to ./logs
+
+# Axiom logging is off by default. Only set this block if you want remote logs.
+AXIOM_ENABLED=false
 AXIOM_TOKEN=your_axiom_token
 AXIOM_DATASET=       # your dataset name
 AXIOM_ORG_ID=        # optional, if your org requires it
-LOG_LEVEL=info       # optional, defaults to info
 
 # Other configurations...
 ```
+
+Local file logs are written to:
+- `logs/combined.log` for all console-backed logs
+- `logs/error.log` for error-level logs
+- `logs/private.log` for detailed message records that are intentionally kept out of the console
+- `logs/exceptions.log` and `logs/rejections.log` for uncaught failures
 
 ### 3. Start the bot
 ```bash

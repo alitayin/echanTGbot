@@ -688,7 +688,7 @@ async function processGroupMessage(msg, bot, ports) {
 
     console.log(`Built query: length=${query.length}, hasImage=${hasImageMedia(msg)}`);
 
-    // Log full message content to Axiom only (not to local console)
+    // Log full message content to the private log sink, not to the console.
     logger.axiomOnly('info', 'Group message received', {
         chatId: msg.chat.id,
         fromId: msg?.from?.id ?? msg?.sender_chat?.id,
