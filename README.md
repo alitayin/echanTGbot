@@ -4,7 +4,8 @@ eChan Telegram bot for group management and data queries.
 
 ## Features
 - Conversational Q&A: mention `@alitayinGPTbot` or the keyword `echan`; DM supported.
-- Group management: spam detection and simple anti-impersonation.
+- Optional group protection: spam detection, newcomer restrictions, flood protection, and anti-impersonation. Protection is disabled by default.
+- Trusted-user translation: trusted users and allowlisted admins are translated in configured target groups.
 - Whitelist Keywords: `/whitelisting <keyword>` to request whitelisting (bypasses spam detection, requires admin approval); `/listwhitelist` and `/removewhitelist` for admins.
 - Price: `/price` returns the latest XEC price.
 - Avalanche: `/ava` returns the latest network summary.
@@ -35,6 +36,17 @@ MNEMONIC="your twelve word mnemonic phrase"
 # Admin Users (comma-separated usernames)
 ALLOWED_USERS=username1,username2
 
+# Groups where trusted-user auto-translation is enabled
+TARGET_GROUP_IDS=-1001234567890
+
+# Protection is disabled on a fresh installation. These values are only
+# required when an admin enables protection.
+NOTIFICATION_GROUP_ID=-1001234567890
+SPAM_THRESHOLD=5
+ADDITIONAL_API_KEY=your_analysis_api_key
+SECONDARY_SPAM_API_KEY=your_secondary_spam_api_key
+ALITAYIN_USER_ID=your_target_user_id
+
 
 # Logging
 LOG_LEVEL=info              # optional, defaults to info
@@ -60,6 +72,23 @@ Local file logs are written to:
 ```bash
 npm start
 ```
+
+Protection starts disabled when no local protection state exists. An allowlisted
+admin can manage the global state in a private chat with the bot:
+
+```text
+/protectionstatus
+/enableprotection
+/disableprotection
+```
+
+The manual state is stored under `data/` and survives restarts. It is not part of
+Git, so a fresh checkout starts with protection disabled. Translation and LLM
+replies remain available while protection is disabled.
+
+When eChan deletes an original message, it also deletes translations linked to
+that message. Telegram does not notify regular bots when a user or another admin
+manually deletes a message, so external manual deletions cannot be cascaded.
 
 ## Documentation
 

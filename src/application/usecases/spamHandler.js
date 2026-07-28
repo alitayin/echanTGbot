@@ -13,7 +13,6 @@ const logger = require('../../utils/logger.js');
 
 const { fetchMessageAnalysis, fetchMessageAnalysisWithImage } = require('../../infrastructure/ai/messageAnalysis.js');
 const { performSecondarySpamCheck } = require('../../infrastructure/ai/secondarySpamCheck.js');
-const { translateToEnglishIfTargetGroup } = require('../../infrastructure/ai/translation.js');
 const { updateSpamRecord } = require('../../infrastructure/storage/spamUserStore.js');
 const { isSimilarToSpam, addSpamMessage } = require('../../infrastructure/storage/spamMessageCache.js');
 const { addSpamImage, isSpamImage } = require('../../infrastructure/storage/spamImageStore.js');
@@ -25,9 +24,7 @@ const {
 const { buildSpamModerationButtons } = require('./spamModerationHandler.js');
 const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
 const whitelinkConfig = require('../../../config/whitelink.json');
-const { HIGH_FREQ_WORDS } = require('../../domain/utils/englishHighFreq.js');
 const { extractReplyMarkupSummary } = require('../../domain/utils/messageContext.js');
-const { detectNonEnglish } = require('../../domain/utils/languageDetect.js');
 const { truncate } = require('../../domain/utils/text.js');
 const {
     isUserTrusted,
@@ -660,10 +657,6 @@ async function handleSpamDeletion(msg, bot, query = null, skipCache = false) {
     }
 }
 
-async function handleTranslation(msg, bot) {
-    await translateToEnglishIfTargetGroup(msg, bot);
-}
-
 async function processGroupMessage(msg, bot, ports) {
     console.log(`processGroupMessage: chatId=${msg?.chat?.id} fromId=${msg?.from?.id ?? msg?.sender_chat?.id}`);
 
@@ -755,26 +748,7 @@ async function processGroupMessage(msg, bot, ports) {
         console.log(
             `User ${msg.from.id} is globally trusted (>= normal streak threshold), skipping spam detection`
         );
-        // Trusted users: skip spam checks but still ensure non-English content is translated.
-        // Detection only signals the need to consult API; translation happens only after API confirms.
-        const detection = detectNonEnglish(msg);
         await maybeLearnTrustedWhitelistEntries(msg);
-        if (detection.shouldCheckWithApi) {
-            console.log(`Non-English candidate (trusted path): reasons=${detection.reasons.join('; ')}, ratio=${detection.ratio?.toFixed(3)}, coverage=${detection.coverage != null ? detection.coverage.toFixed(3) : 'n/a'}, coverageStem=${detection.coverageStem != null ? detection.coverageStem.toFixed(3) : 'n/a'}, len=${detection.length}, detectMs=${detection.durationMs}`);
-            try {
-                const langAnalysis = await fetchMessageAnalysis(query, senderId);
-                if (langAnalysis && langAnalysis.is_english === false) {
-                    console.log('API confirmed non-English (trusted path), translating');
-                    await handleTranslation(msg, bot);
-                } else {
-                    console.log(`API says English or unknown (trusted path): is_english=${langAnalysis?.is_english}`);
-                }
-            } catch (err) {
-                console.error('Trusted path language API check failed:', err?.message || err);
-            }
-            return;
-        }
-        // If no heuristic signals, do nothing (no translation) for trusted users.
         return;
     }
 
@@ -838,14 +812,6 @@ async function processGroupMessage(msg, bot, ports) {
             await recordNormalMessage(msg.from.id);
         }
 
-        // Non-trusted users: rely solely on the API's is_english flag, not local heuristics
-        const apiIsEnglish = answer?.is_english;
-        if (apiIsEnglish === false) {
-            console.log('API marked message as non-English (non-trusted path), translating');
-            await handleTranslation(msg, bot);
-        } else {
-            console.log(`API language flag (non-trusted path): is_english=${apiIsEnglish}`);
-        }
     }
 }
 

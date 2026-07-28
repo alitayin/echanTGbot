@@ -7,7 +7,7 @@ const {
     ENGLISH_COVERAGE_SKIP,
     ENGLISH_MIN_COVERAGE,
     ENGLISH_MIN_COVERAGE_STEM,
-} = require('../policies/spamPolicy.js');
+} = require('../policies/languagePolicy.js');
 
 /**
  * Heuristic to decide whether a message should be checked by the API for

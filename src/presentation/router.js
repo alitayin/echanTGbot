@@ -29,8 +29,14 @@ const { handleWhitelistCallback } = require('../application/usecases/whitelistHa
 const { handleMessageCallback } = require('../application/usecases/messageHandler.js');
 const { handleSpamModerationCallback } = require('../application/usecases/spamModerationHandler.js');
 const { recordNewcomerJoin, clearNewcomerJoin } = require('../infrastructure/storage/newcomerTracker.js');
+const {
+    isTranslateCommand,
+    handleTrustedAutoTranslation,
+    handleTranslateCommand
+} = require('../application/usecases/translationHandler.js');
 const { getHelpMenu, helpMenuData } = require('./views/helpMenuData.js');
 const { createCommandRouter, LIMITED_MODE, FEATURE_DISABLED_MSGS } = require('./routes/commandRegistry.js');
+const { isProtectionEnabled } = require('../infrastructure/storage/protectionState.js');
 
 function withTimeout(promise, ms) {
     return Promise.race([
@@ -112,12 +118,9 @@ function shouldHandleRequest(msg) {
         return false;
     }
 
-    const hasTranslateCommand = textContent.includes('/translate');
-
-    return (msg.reply_to_message && msg.reply_to_message.from.username === BOT_USERNAME) ||
+    return (msg.reply_to_message?.from?.username === BOT_USERNAME) ||
            (textContent.includes(`@${BOT_USERNAME}`) || echanRegex.test(textContent)) ||
-           (msg.chat.type === "private") ||
-           hasTranslateCommand;
+           (msg.chat.type === "private");
 }
 
 function isActiveChatMemberStatus(status) {
@@ -146,6 +149,10 @@ function registerRoutes(bot) {
     // Listener 2: command router - handles all /commands
     bot.on('message', async (msg) => {
         try {
+            if (isTranslateCommand(msg)) {
+                await handleTranslateCommand(msg, bot);
+                return;
+            }
             await commandRouter.handleMessage(msg, bot);
         } catch (error) {
             console.error('Command router error:', error);
@@ -200,7 +207,8 @@ function registerRoutes(bot) {
             'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
             'removewhitelist', 'message', 'showmessage', 'deletemessage',
             'stopmessage', 'listscheduled', 'mission', 'showmission', 'deletemission',
-            'start', 'help', 'price', 'ava', 'explorer', 'wallet', 'time', 'translate', 'chronik', 'mcp'
+            'start', 'help', 'price', 'ava', 'explorer', 'wallet', 'time', 'translate', 'chronik', 'mcp',
+            'enableprotection', 'disableprotection', 'protectionstatus'
         ];
 
         if (knownCommands.includes(commandName.toLowerCase())) {
@@ -283,21 +291,6 @@ function registerRoutes(bot) {
             .replace(`@${BOT_USERNAME}`, "")
             .trim();
 
-        // Handle /translate command
-        if (query.includes('/translate')) {
-            query = query.replace(/\/translate/g, 'echan please translate(result only) to');
-
-            if (msg.reply_to_message) {
-                const repliedText = msg.reply_to_message.text || msg.reply_to_message.caption || '';
-                if (repliedText) {
-                    const languageSpec = query.replace('echan please translate(result only) to', '').trim();
-                    query = languageSpec
-                        ? `echan please translate(result only) to ${languageSpec}: "${repliedText}"`
-                        : `echan please translate(result only): "${repliedText}"`;
-                }
-            }
-        }
-
         // Add username to query
         const userInfo = msg.from.username ? `[${msg.from.username}]: ` : '';
         query = userInfo + query;
@@ -349,8 +342,21 @@ function registerRoutes(bot) {
         }
     });
 
+    // Trusted-user translation is independent from the protection switch.
+    bot.on('message', async (msg) => {
+        try {
+            await handleTrustedAutoTranslation(msg, bot);
+        } catch (error) {
+            console.error('Trusted translation failed:', error);
+        }
+    });
+
     // Listener 7: sync newcomer tracking from chat_member updates
     bot.on('chat_member', async (update) => {
+        if (!await isProtectionEnabled()) {
+            return;
+        }
+
         const chatId = update?.chat?.id;
         const userId = update?.new_chat_member?.user?.id;
         const isBotUser = update?.new_chat_member?.user?.is_bot === true;
@@ -380,6 +386,10 @@ function registerRoutes(bot) {
     bot.on('message', async (msg) => {
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         if (!isGroup) {
+            return;
+        }
+
+        if (!await isProtectionEnabled()) {
             return;
         }
 
@@ -458,6 +468,10 @@ function registerRoutes(bot) {
             return;
         }
 
+        if (!await isProtectionEnabled()) {
+            return;
+        }
+
         if (!msg || (
             !msg.text &&
             !msg.caption &&
@@ -488,6 +502,10 @@ function registerRoutes(bot) {
 
     // Listener 10: anti-impersonation
     bot.on('message', async (msg) => {
+        if (!await isProtectionEnabled()) {
+            return;
+        }
+
         if (LIMITED_MODE) {
             return;
         }
@@ -526,19 +544,30 @@ function registerRoutes(bot) {
     // Listener 10: callback query handler
     bot.on('callback_query', async (query) => {
         try {
-            if (query.data.startsWith('whitelist_')) {
+            const callbackData = query.data || '';
+            const isProtectionCallback = callbackData.startsWith('whitelist_')
+                || callbackData.startsWith('spam_action:');
+            if (isProtectionCallback && !await isProtectionEnabled()) {
+                await bot.answerCallbackQuery(query.id, {
+                    text: 'Protection is disabled.',
+                    show_alert: true
+                });
+                return;
+            }
+
+            if (callbackData.startsWith('whitelist_')) {
                 console.log('\n--- Processing whitelist callback ---');
                 await handleWhitelistCallback(query, bot);
-            } else if (query.data.startsWith('msg_')) {
+            } else if (callbackData.startsWith('msg_')) {
                 console.log('\n--- Processing message callback ---');
                 await handleMessageCallback(query, bot);
-            } else if (query.data.startsWith('spam_action:')) {
+            } else if (callbackData.startsWith('spam_action:')) {
                 console.log('\n--- Processing spam moderation callback ---');
                 await handleSpamModerationCallback(query, bot);
-            } else if (query.data.startsWith('help_') || query.data.startsWith('cmd_')) {
+            } else if (callbackData.startsWith('help_') || callbackData.startsWith('cmd_')) {
                 console.log('\n--- Processing help menu callback ---');
                 const isAdmin = ALLOWED_USERS.includes(query.from.username);
-                const menuData = getHelpMenu(query.data, isAdmin);
+                const menuData = getHelpMenu(callbackData, isAdmin);
 
                 if (menuData) {
                     await withTimeout(bot.editMessageText(menuData.text, {

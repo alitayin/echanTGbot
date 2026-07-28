@@ -1,16 +1,20 @@
 require('dotenv').config();
 
-// --- Required env vars (bot cannot start without these) ---
+// --- Core env vars (bot cannot start without these) ---
 const REQUIRED = [
   'API_KEY',
   'API_ENDPOINT',
   'TELEGRAM_TOKEN',
   'BOT_USERNAME',
   'TARGET_GROUP_IDS',
+];
+
+const PROTECTION_REQUIRED = [
   'NOTIFICATION_GROUP_ID',
   'SPAM_THRESHOLD',
   'ADDITIONAL_API_KEY',
   'SECONDARY_SPAM_API_KEY',
+  'ALITAYIN_USER_ID',
 ];
 
 const missing = REQUIRED.filter((key) => !process.env[key]);
@@ -21,7 +25,12 @@ if (missing.length > 0) {
   );
 }
 
+function getMissingProtectionConfig() {
+  return PROTECTION_REQUIRED.filter((key) => !process.env[key]);
+}
+
 module.exports = {
+  getMissingProtectionConfig,
   // --- AI / API ---
   API_KEY: process.env.API_KEY,
   ADDITIONAL_API_KEY: process.env.ADDITIONAL_API_KEY,

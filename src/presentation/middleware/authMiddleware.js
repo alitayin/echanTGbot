@@ -1,5 +1,6 @@
 const { ALLOWED_USERS } = require('../../../config/config.js');
 const { sendPromptMessage } = require('../../infrastructure/telegram/promptMessenger.js');
+const { isProtectionEnabled } = require('../../infrastructure/storage/protectionState.js');
 
 /**
  * Authorization middleware factory
@@ -78,9 +79,18 @@ function privateOnlyMiddleware(msg, bot, next) {
     return next();
 }
 
+async function protectionOnlyMiddleware(msg, bot, next) {
+    if (!await isProtectionEnabled()) {
+        await sendPromptMessage(bot, msg.chat.id, 'Protection is disabled.');
+        return;
+    }
+    return next();
+}
+
 module.exports = {
     createAuthMiddleware,
     createLimitedModeMiddleware,
     groupOnlyMiddleware,
-    privateOnlyMiddleware
+    privateOnlyMiddleware,
+    protectionOnlyMiddleware
 };

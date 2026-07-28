@@ -5,6 +5,7 @@ const { MessageScheduler } = require('../application/services/messageScheduler.j
 const { startRewardScheduler } = require('../application/services/missionRewardScheduler.js');
 const { startWeeklyExportScheduler } = require('../application/services/dataExportScheduler.js');
 const { GithubVersionChecker } = require('../application/services/githubVersionChecker.js');
+const { getProtectionState } = require('../infrastructure/storage/protectionState.js');
 
 async function createBotApp() {
     // Start with polling off so we can flush pending updates first
@@ -39,6 +40,9 @@ async function createBotApp() {
     bot.startPolling();
 
     registerRoutes(bot);
+
+    const protectionState = await getProtectionState();
+    console.log(`Protection is ${protectionState.enabled ? 'enabled' : 'disabled'}.`);
 
     // Start message scheduler
     const scheduler = new MessageScheduler(bot);

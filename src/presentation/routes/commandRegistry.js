@@ -1,5 +1,10 @@
 const { CommandRouter } = require('../middleware/commandRouter.js');
-const { createAuthMiddleware, createLimitedModeMiddleware } = require('../middleware/authMiddleware.js');
+const {
+    createAuthMiddleware,
+    createLimitedModeMiddleware,
+    privateOnlyMiddleware,
+    protectionOnlyMiddleware
+} = require('../middleware/authMiddleware.js');
 const { ALLOWED_USERS, ECASH_ARMY_GROUP_ID, BOT_USERNAME } = require('../../../config/config.js');
 const { getReporters } = require('../../application/usecases/licenseHandler.js');
 const {
@@ -31,6 +36,11 @@ const {
     handleAvalanche,
     handleTime
 } = require('./commandHandlers.js');
+const {
+    handleEnableProtection,
+    handleDisableProtection,
+    handleProtectionStatus
+} = require('../../application/usecases/protectionHandler.js');
 
 const LIMITED_MODE = false;
 const FEATURE_DISABLED_MSGS = [
@@ -85,13 +95,18 @@ function createCommandRouter() {
     router.command('/start', limitedMode, handleHelp);
     router.command('/help', limitedMode, handleHelp);
 
+    // Protection state is global and can only be changed by allowlisted admins in DMs.
+    router.command('/enableprotection', privateOnlyMiddleware, adminAuth, handleEnableProtection);
+    router.command('/disableprotection', privateOnlyMiddleware, adminAuth, handleDisableProtection);
+    router.command('/protectionstatus', privateOnlyMiddleware, adminAuth, handleProtectionStatus);
+
     // Report command (special auth)
-    router.command('/report*', reportAuth, limitedMode, handleReport);
+    router.command('/report*', protectionOnlyMiddleware, reportAuth, limitedMode, handleReport);
 
     // License management (admin only)
-    router.command('/addlicense*', adminAuth, limitedMode, handleAddLicenseCommand);
-    router.command('/removelicense*', adminAuth, limitedMode, handleRemoveLicenseCommand);
-    router.command('/listlicenses*', adminAuth, limitedMode, handleListLicensesCommand);
+    router.command('/addlicense*', protectionOnlyMiddleware, adminAuth, limitedMode, handleAddLicenseCommand);
+    router.command('/removelicense*', protectionOnlyMiddleware, adminAuth, limitedMode, handleRemoveLicenseCommand);
+    router.command('/listlicenses*', protectionOnlyMiddleware, adminAuth, limitedMode, handleListLicensesCommand);
 
     // User signup (all users)
     router.command('/signup*', limitedMode, handleSignupCommand);
@@ -108,9 +123,9 @@ function createCommandRouter() {
     router.command('/importdata*', adminAuth, limitedMode, handleImport);
 
     // Whitelisting (all users for request, admin for management)
-    router.command('/whitelisting*', limitedMode, handleWhitelisting);
-    router.command('/listwhitelist*', adminAuth, limitedMode, handleListWhitelist);
-    router.command('/removewhitelist*', adminAuth, limitedMode, handleRemoveWhitelist);
+    router.command('/whitelisting*', protectionOnlyMiddleware, limitedMode, handleWhitelisting);
+    router.command('/listwhitelist*', protectionOnlyMiddleware, adminAuth, limitedMode, handleListWhitelist);
+    router.command('/removewhitelist*', protectionOnlyMiddleware, adminAuth, limitedMode, handleRemoveWhitelist);
 
     // Message management (admin only)
     router.command('/message*', adminAuth, limitedMode, handleMessage);

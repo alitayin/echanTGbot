@@ -1,6 +1,8 @@
 // Telegram administrative actions: delete message, kick user, forward message, etc.
 // Infrastructure layer module.
 
+const { deleteLinkedTranslations } = require('../storage/translationLinkStore.js');
+
 // Permanently ban user from the chat (kick + prevent rejoin)
 async function banUser(bot, chatId, userId) {
   try {
@@ -33,6 +35,7 @@ async function unbanUser(bot, chatId, userId) {
 async function deleteMessage(bot, chatId, messageId) {
   try {
     await bot.deleteMessage(chatId, messageId);
+    await deleteLinkedTranslations(bot, chatId, messageId);
     return true;
   } catch (error) {
     console.error('Failed to delete message:', error);
@@ -81,6 +84,5 @@ module.exports = {
   forwardMessage,
   getIsAdmin,
 };
-
 
 

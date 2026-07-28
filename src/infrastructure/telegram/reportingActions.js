@@ -1,5 +1,7 @@
 // Infrastructure helpers for report flow: admin check, forward or copy, delete, notifications
 
+const { deleteLinkedTranslations } = require('../storage/translationLinkStore.js');
+
 async function getBotIsAdmin(bot, chatId) {
   try {
     const botInfo = await bot.getMe();
@@ -43,6 +45,7 @@ async function forwardOrCopyToLogGroup(bot, logGroupId, originalMsg, sourceChatI
 async function deleteMessageSafe(bot, chatId, messageId) {
   try {
     await bot.deleteMessage(chatId, messageId);
+    await deleteLinkedTranslations(bot, chatId, messageId);
     return true;
   } catch (e) {
     return false;
@@ -74,5 +77,4 @@ module.exports = {
   sendChatNotification,
   sendLogGroupReport,
 };
-
 

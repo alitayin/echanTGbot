@@ -20,6 +20,7 @@ const helpMenuData = {
             keyboard: [
                 [{ text: '👮 Mods Add & Remove', callback_data: 'help_mods' }],
                 [{ text: '👥 Community User Management', callback_data: 'help_users' }],
+                [{ text: '🛡️ Protection Control', callback_data: 'help_protection' }],
                 [{ text: '💸 Send XEC/SLP/ALP', callback_data: 'help_send' }],
                 [{ text: '📦 User Data Import/Export', callback_data: 'help_data' }],
                 [{ text: '🛡️ Whitelist Keywords', callback_data: 'help_whitelist' }],
@@ -44,6 +45,15 @@ const helpMenuData = {
             keyboard: [
                 [{ text: '🔍 /getaddress - Get User Address', callback_data: 'cmd_getaddress' }],
                 [{ text: '📋 /listaddresses - List All Addresses', callback_data: 'cmd_listaddresses' }],
+                [{ text: '🔙 Back to Main Menu', callback_data: 'help_main' }]
+            ]
+        },
+        help_protection: {
+            text: '🛡️ <b>Protection Control</b>\n\nProtection is global, persistent, and disabled by default. These commands only work in a private chat with the bot:',
+            keyboard: [
+                [{ text: '/protectionstatus', callback_data: 'cmd_protectionstatus' }],
+                [{ text: '/enableprotection', callback_data: 'cmd_enableprotection' }],
+                [{ text: '/disableprotection', callback_data: 'cmd_disableprotection' }],
                 [{ text: '🔙 Back to Main Menu', callback_data: 'help_main' }]
             ]
         },
@@ -124,6 +134,18 @@ const helpMenuData = {
         cmd_translate: {
             text: '🌐 <b>/translate</b>\n\nTranslate messages to a specified language.\n\n<b>Usage:</b>\n<code>/translate [language]</code>\n\n<b>Example:</b>\nReply to a message and send:\n<code>/translate english</code>\n\n<b>Note:</b>\nCan reply to translate, or add text after command',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
+        },
+        cmd_protectionstatus: {
+            text: '🛡️ <b>/protectionstatus</b>\n\nShow the global protection state.\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_protection' }]]
+        },
+        cmd_enableprotection: {
+            text: '🛡️ <b>/enableprotection</b>\n\nEnable spam, newcomer, flood, and impersonation protection globally.\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_protection' }]]
+        },
+        cmd_disableprotection: {
+            text: '🛡️ <b>/disableprotection</b>\n\nDisable all automatic and manual protection features globally. Translation and LLM replies stay active.\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_protection' }]]
         },
         cmd_addlicense: {
             text: '➕ <b>/addlicense</b>\n\nGrant a user moderator permission to use /report.\n\n<b>Usage:</b>\n<code>/addlicense @username</code>\n\n<b>Note:</b>\nAdmin only',
@@ -221,5 +243,4 @@ function getHelpMenu(callbackData, isAdmin) {
 }
 
 module.exports = { helpMenuData, getHelpMenu };
-
 
