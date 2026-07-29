@@ -8,7 +8,6 @@ const { isProtectionEnabled } = require('../../infrastructure/storage/protection
 function createAuthMiddleware(options = {}) {
     const {
         requireAdmin = false,
-        requireReporter = false,
         allowedUsers = [],
         customCheck = null
     } = options;

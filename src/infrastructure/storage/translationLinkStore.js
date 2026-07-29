@@ -1,10 +1,8 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 const LINK_TTL_MS = 48 * 60 * 60 * 1000;
-const dbPath = process.env.TRANSLATION_LINK_DB_PATH
-  || path.join(__dirname, '../../../data/translationLinks');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('TRANSLATION_LINK_DB_PATH', 'translationLinks');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 function makeKey(chatId, originalMessageId) {
   return `${chatId}:${originalMessageId}`;
@@ -65,6 +63,23 @@ async function deleteLinkedTranslations(bot, chatId, originalMessageId) {
   return deleted;
 }
 
+async function pruneExpiredLinks(now = Date.now()) {
+  let deleted = 0;
+  for await (const [key, value] of db.iterator()) {
+    const createdAt = Number(value?.createdAt);
+    if (!Number.isFinite(createdAt) || now - createdAt > LINK_TTL_MS) {
+      await db.del(key);
+      deleted += 1;
+    }
+  }
+  return deleted;
+}
+
+const cleanupTimer = setInterval(() => {
+  pruneExpiredLinks().catch((error) => console.error('Failed to prune translation links:', error));
+}, 60 * 60 * 1000);
+cleanupTimer.unref?.();
+
 async function closeTranslationLinkStore() {
   await db.close();
 }
@@ -74,5 +89,6 @@ module.exports = {
   getLink,
   recordTranslationLink,
   deleteLinkedTranslations,
+  pruneExpiredLinks,
   closeTranslationLinkStore,
 };

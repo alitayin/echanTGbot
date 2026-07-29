@@ -1,8 +1,6 @@
 const { API_KEY, API_ENDPOINT, EXTERNAL_API_KEY } = require('../../config/config.js');
 const EchanApiClient = require('../infrastructure/ai/echanApi.js');
 const { fetchMessageAnalysis } = require('../infrastructure/ai/messageAnalysis.js');
-const { performSecondarySpamCheck } = require('../infrastructure/ai/secondarySpamCheck.js');
-const { translateToEnglishIfTargetGroup } = require('../infrastructure/ai/translation.js');
 
 function createPorts(bot) {
   const chatClient = new EchanApiClient(API_KEY, API_ENDPOINT);
@@ -17,14 +15,6 @@ function createPorts(bot) {
 
   const analysis = {
     analyzeMessage: (query, userId) => fetchMessageAnalysis(query, userId),
-  };
-
-  const secondarySpam = {
-    check: (query, userId) => performSecondarySpamCheck(query, userId),
-  };
-
-  const translation = {
-    translateToEnglishIfTargetGroup: (msg, bot) => translateToEnglishIfTargetGroup(msg, bot),
   };
 
   const telegramGroup = {
@@ -49,9 +39,8 @@ function createPorts(bot) {
     },
   };
 
-  return { chat, analysis, secondarySpam, translation, telegramGroup };
+  return { chat, analysis, telegramGroup };
 }
 
 module.exports = { createPorts };
-
 

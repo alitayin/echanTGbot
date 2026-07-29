@@ -19,10 +19,6 @@ vi.mock('../../../src/infrastructure/ai/secondarySpamCheck.js', () => ({
     performSecondarySpamCheck: vi.fn(),
 }));
 
-vi.mock('../../../src/infrastructure/ai/translation.js', () => ({
-    translateToEnglishIfTargetGroup: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock('../../../src/infrastructure/storage/normalMessageTracker.js', () => ({
     isUserTrusted: vi.fn().mockResolvedValue(false),
     recordNormalMessage: vi.fn().mockResolvedValue(undefined),

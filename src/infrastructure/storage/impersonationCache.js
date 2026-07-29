@@ -51,7 +51,8 @@ function cleanExpiredCache() {
 }
 
 // Periodic cache cleanup (10 min)
-setInterval(cleanExpiredCache, 10 * 60 * 1000);
+const cleanupTimer = setInterval(cleanExpiredCache, 10 * 60 * 1000);
+cleanupTimer.unref?.();
 
 /**
  * Get cached admins for a group
@@ -157,5 +158,4 @@ module.exports = {
     getWhitelistStats,
     getStoredAdmins
 };
-
 

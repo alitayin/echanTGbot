@@ -24,6 +24,7 @@ const serviceName = process.env.SERVICE_NAME || 'xecbot';
 const logLevel = process.env.LOG_LEVEL || 'info';
 const localLogEnabled = envFlag('LOCAL_LOG_ENABLED', true);
 const axiomEnabled = envFlag('AXIOM_ENABLED', false);
+const handleProcessErrors = envFlag('LOG_PROCESS_ERRORS', process.env.NODE_ENV !== 'test');
 const defaultLogDir = path.resolve(__dirname, '..', '..', 'logs');
 const logDir = path.resolve(process.env.LOG_DIR || defaultLogDir);
 const jsonFormat = winston.format.combine(
@@ -163,8 +164,7 @@ logger = winston.createLogger({
   format: jsonFormat,
   defaultMeta: { service: serviceName },
   transports,
-  exceptionHandlers,
-  rejectionHandlers,
+  ...(handleProcessErrors ? { exceptionHandlers, rejectionHandlers } : {}),
 });
 
 // Bridge existing console usage to the logger so existing logs reach configured transports.

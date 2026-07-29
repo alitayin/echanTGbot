@@ -1,14 +1,35 @@
-/**
- * Retry an AI API call with primary/backup key rotation.
- *
- * @param {object[]} clients  - Ordered array of EchanApiClient instances (primary first).
- * @param {function}  fn      - async (client) => result. Throw on failure.
- * @param {object}   [opts]
- * @param {number}   [opts.maxRetriesPerKey=3]  - Max attempts before switching key.
- * @param {number}   [opts.maxTotalAttempts=6]  - Hard cap across all keys.
- * @returns {Promise<*>} Resolves with the first successful result, or rejects when
- *                       all attempts are exhausted.
- */
+const REDACTED = '[REDACTED]';
+
+function redact(value) {
+  return String(value ?? '')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, `Bearer ${REDACTED}`)
+    .replace(/\b(api[_ -]?key)\s*[:=]\s*[^\s,;]+/gi, `$1=${REDACTED}`)
+    .slice(0, 500);
+}
+
+function getErrorSummary(error) {
+  const data = error?.response?.data;
+  const payload = data && typeof data === 'object' ? data : {};
+  return {
+    status: error?.response?.status ?? payload.status ?? null,
+    code: redact(payload.code || error?.code || ''),
+    message: redact(payload.message || (typeof data === 'string' ? data : error?.message) || 'Unknown error'),
+  };
+}
+
+function isNetworkError(error) {
+  return Boolean(error?.request) && !error?.response;
+}
+
+function isRetryable(error) {
+  const status = error?.response?.status;
+  return isNetworkError(error) || status === 408 || status === 429 || status >= 500;
+}
+
+function shouldRotateKey(error) {
+  return [401, 403, 429].includes(error?.response?.status);
+}
+
 async function withKeyRotation(clients, fn, opts = {}) {
   if (!clients || clients.length === 0) {
     throw new Error('withKeyRotation: clients array must not be empty');
@@ -16,38 +37,38 @@ async function withKeyRotation(clients, fn, opts = {}) {
   const maxRetriesPerKey = opts.maxRetriesPerKey ?? 3;
   const maxTotalAttempts = opts.maxTotalAttempts ?? clients.length * maxRetriesPerKey;
 
-  let clientIndex = 0;
-  let attemptsOnCurrentClient = 0;
   let totalAttempts = 0;
+  let lastError;
 
-  while (totalAttempts < maxTotalAttempts && clientIndex < clients.length) {
+  for (let clientIndex = 0; clientIndex < clients.length && totalAttempts < maxTotalAttempts; clientIndex++) {
     const client = clients[clientIndex];
-    try {
-      attemptsOnCurrentClient++;
+
+    for (let attempt = 1; attempt <= maxRetriesPerKey && totalAttempts < maxTotalAttempts; attempt++) {
       totalAttempts++;
-      return await fn(client);
-    } catch (error) {
-      const is400 = error.response?.status === 400;
-      if (is400) {
-        console.log(`API key rotation: got 400 on attempt ${totalAttempts}/${maxTotalAttempts}, switching key`);
-      } else {
-        console.error(`API call failed (attempt ${totalAttempts}/${maxTotalAttempts}):`, error.message || error);
-      }
+      try {
+        return await fn(client);
+      } catch (error) {
+        lastError = error;
+        console.warn('AI API request failed', getErrorSummary(error));
 
-      const exhaustedCurrentKey =
-        is400 || attemptsOnCurrentClient >= maxRetriesPerKey;
-
-      if (exhaustedCurrentKey && clientIndex < clients.length - 1) {
-        clientIndex++;
-        attemptsOnCurrentClient = 0;
-        console.log(`Switching to API client #${clientIndex + 1}`);
-      } else if (totalAttempts >= maxTotalAttempts || attemptsOnCurrentClient >= maxRetriesPerKey) {
-        break;
+        if (shouldRotateKey(error) && clientIndex < clients.length - 1) {
+          break;
+        }
+        if (!isRetryable(error)) {
+          throw error;
+        }
       }
     }
   }
 
-  throw new Error('withKeyRotation: all attempts exhausted');
+  const exhausted = new Error('withKeyRotation: all attempts exhausted');
+  exhausted.cause = lastError;
+  throw exhausted;
 }
 
-module.exports = { withKeyRotation };
+module.exports = {
+  withKeyRotation,
+  getErrorSummary,
+  isRetryable,
+  shouldRotateKey,
+};

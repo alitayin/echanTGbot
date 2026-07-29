@@ -4,13 +4,14 @@ import path from 'path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 let bot;
+let handlers;
 
 beforeAll(async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'protection-routing-'));
     process.env.PROTECTION_STATE_DB_PATH = path.join(dir, 'db');
     vi.resetModules();
 
-    const handlers = new Map();
+    handlers = new Map();
     bot = {
         on: vi.fn((event, handler) => {
             if (!handlers.has(event)) handlers.set(event, []);
@@ -40,6 +41,10 @@ afterAll(() => {
 });
 
 describe('default-disabled protection routing', () => {
+    it('registers one sequential listener for ordinary messages', () => {
+        expect(handlers.get('message')).toHaveLength(1);
+    });
+
     it('does not invoke Telegram moderation APIs for an ordinary group message', async () => {
         await bot.simulateMessage({
             message_id: 10,

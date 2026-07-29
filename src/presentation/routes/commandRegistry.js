@@ -41,6 +41,11 @@ const {
     handleDisableProtection,
     handleProtectionStatus
 } = require('../../application/usecases/protectionHandler.js');
+const {
+    handleTrustUser,
+    handleUntrustUser,
+    handleTrustStatus,
+} = require('../../application/usecases/trustedUserHandler.js');
 
 const LIMITED_MODE = false;
 const FEATURE_DISABLED_MSGS = [
@@ -99,6 +104,11 @@ function createCommandRouter() {
     router.command('/enableprotection', privateOnlyMiddleware, adminAuth, handleEnableProtection);
     router.command('/disableprotection', privateOnlyMiddleware, adminAuth, handleDisableProtection);
     router.command('/protectionstatus', privateOnlyMiddleware, adminAuth, handleProtectionStatus);
+
+    // Trusted translation users can be managed only by allowlisted admins in DMs.
+    router.command(/^\/trustuser(?:@\w+)?(?:\s+.*)?$/i, privateOnlyMiddleware, adminAuth, handleTrustUser);
+    router.command(/^\/untrustuser(?:@\w+)?(?:\s+.*)?$/i, privateOnlyMiddleware, adminAuth, handleUntrustUser);
+    router.command(/^\/truststatus(?:@\w+)?(?:\s+.*)?$/i, privateOnlyMiddleware, adminAuth, handleTrustStatus);
 
     // Report command (special auth)
     router.command('/report*', protectionOnlyMiddleware, reportAuth, limitedMode, handleReport);

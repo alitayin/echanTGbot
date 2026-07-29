@@ -1,9 +1,11 @@
 const axios = require('axios');
+const { execFileSync } = require('child_process');
 const { NOTIFICATION_GROUP_ID } = require('../../../config/config.js');
 
 const REPO_OWNER = 'alitayin';
 const REPO_NAME = 'echanTGbot';
 const REMOTE_PACKAGE_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/package.json`;
+const REMOTE_COMMIT_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/main`;
 const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
 const RELEASE_API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/tags`;
 const CHECK_INTERVAL_MS = parseInt(process.env.GITHUB_VERSION_CHECK_INTERVAL_MS || String(5 * 60 * 1000));
@@ -15,6 +17,18 @@ const localVersion = (() => {
         return '0.0.0';
     }
 })();
+
+function getLocalCommitSha() {
+    try {
+        return execFileSync('git', ['rev-parse', 'HEAD'], {
+            cwd: require('path').resolve(__dirname, '../../..'),
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim() || null;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * Compare two semver strings (major.minor.patch).
@@ -55,9 +69,9 @@ function formatReleaseSummary(releaseData, remoteVersion) {
     return parts.join('\n');
 }
 
-async function fetchReleaseData(remoteVersion) {
+async function fetchReleaseData(remoteVersion, http = axios) {
     try {
-        const response = await axios.get(`${RELEASE_API_URL}/v${remoteVersion}`, { timeout: 10000 });
+        const response = await http.get(`${RELEASE_API_URL}/v${remoteVersion}`, { timeout: 10000 });
         return response.data || null;
     } catch (error) {
         console.warn(`[GithubVersionChecker] Failed to fetch release details for v${remoteVersion}: ${error.message}`);
@@ -66,15 +80,59 @@ async function fetchReleaseData(remoteVersion) {
 }
 
 class GithubVersionChecker {
-    constructor(bot) {
+    constructor(bot, options = {}) {
         this.bot = bot;
-        this.lastNotifiedVersion = null;
+        this.http = options.http || axios;
+        this.localCommitSha = options.localCommitSha === undefined
+            ? getLocalCommitSha()
+            : options.localCommitSha;
+        this.lastNotifiedRevision = null;
         this.intervalId = null;
     }
 
     async check() {
+        if (!NOTIFICATION_GROUP_ID) {
+            return;
+        }
+
         try {
-            const response = await axios.get(REMOTE_PACKAGE_URL, { timeout: 10000 });
+            if (this.localCommitSha) {
+                try {
+                    const commitResponse = await this.http.get(REMOTE_COMMIT_URL, { timeout: 10000 });
+                    const remoteCommitSha = commitResponse.data?.sha;
+                    if (remoteCommitSha) {
+                        console.log(
+                            `[GithubVersionChecker] local=${this.localCommitSha.slice(0, 7)} remote=${remoteCommitSha.slice(0, 7)}`
+                        );
+                        if (
+                            remoteCommitSha !== this.localCommitSha &&
+                            remoteCommitSha !== this.lastNotifiedRevision
+                        ) {
+                            const summary = String(commitResponse.data?.commit?.message || 'New commit on main')
+                                .split('\n')[0]
+                                .slice(0, 200);
+                            const commitUrl = commitResponse.data?.html_url || `${REPO_URL}/commit/${remoteCommitSha}`;
+                            const message = [
+                                '🆕 New echanTGbot commit available!',
+                                '',
+                                `Current commit: ${this.localCommitSha.slice(0, 7)}`,
+                                `Latest commit: ${remoteCommitSha.slice(0, 7)}`,
+                                '',
+                                summary,
+                                commitUrl,
+                            ].join('\n');
+                            await this.bot.sendMessage(NOTIFICATION_GROUP_ID, message);
+                            this.lastNotifiedRevision = remoteCommitSha;
+                            console.log(`[GithubVersionChecker] Notified: ${remoteCommitSha.slice(0, 7)}`);
+                        }
+                        return;
+                    }
+                } catch (error) {
+                    console.warn(`[GithubVersionChecker] Commit check failed, using version fallback: ${error.message}`);
+                }
+            }
+
+            const response = await this.http.get(REMOTE_PACKAGE_URL, { timeout: 10000 });
             const remoteVersion = response.data && response.data.version;
             if (!remoteVersion) {
                 console.log('[GithubVersionChecker] Could not parse remote version');
@@ -85,13 +143,13 @@ class GithubVersionChecker {
 
             if (
                 isRemoteNewer(localVersion, remoteVersion) &&
-                remoteVersion !== this.lastNotifiedVersion
+                `version:${remoteVersion}` !== this.lastNotifiedRevision
             ) {
-                const releaseData = await fetchReleaseData(remoteVersion);
+                const releaseData = await fetchReleaseData(remoteVersion, this.http);
                 const message = formatReleaseSummary(releaseData, remoteVersion);
 
                 await this.bot.sendMessage(NOTIFICATION_GROUP_ID, message);
-                this.lastNotifiedVersion = remoteVersion;
+                this.lastNotifiedRevision = `version:${remoteVersion}`;
                 console.log(`[GithubVersionChecker] Notified: v${remoteVersion}`);
             }
         } catch (error) {
@@ -100,6 +158,10 @@ class GithubVersionChecker {
     }
 
     start() {
+        if (!NOTIFICATION_GROUP_ID) {
+            console.log('[GithubVersionChecker] Disabled: NOTIFICATION_GROUP_ID is not configured');
+            return;
+        }
         if (this.intervalId) {
             console.log('[GithubVersionChecker] Already running');
             return;
@@ -107,6 +169,7 @@ class GithubVersionChecker {
         console.log(`[GithubVersionChecker] Started (interval: ${CHECK_INTERVAL_MS / 1000}s, local: v${localVersion})`);
         this.check();
         this.intervalId = setInterval(() => this.check(), CHECK_INTERVAL_MS);
+        this.intervalId.unref?.();
     }
 
     stop() {
@@ -118,4 +181,4 @@ class GithubVersionChecker {
     }
 }
 
-module.exports = { GithubVersionChecker, isRemoteNewer };
+module.exports = { GithubVersionChecker, isRemoteNewer, getLocalCommitSha };

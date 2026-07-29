@@ -47,6 +47,13 @@ ADDITIONAL_API_KEY=your_analysis_api_key
 SECONDARY_SPAM_API_KEY=your_secondary_spam_api_key
 ALITAYIN_USER_ID=your_target_user_id
 
+# Dify timeouts (optional)
+AI_REQUEST_TIMEOUT_MS=120000
+AI_UPLOAD_TIMEOUT_MS=60000
+
+# Storage root (optional, defaults to ./data). Individual *_DB_PATH variables
+# can override one store when needed.
+DATA_DIR=data
 
 # Logging
 LOG_LEVEL=info              # optional, defaults to info
@@ -80,6 +87,15 @@ admin can manage the global state in a private chat with the bot:
 /protectionstatus
 /enableprotection
 /disableprotection
+```
+
+Trusted translation users can also be managed by an allowlisted admin in a
+private chat:
+
+```text
+/trustuser <telegram_user_id>
+/untrustuser <telegram_user_id>
+/truststatus <telegram_user_id>
 ```
 
 The manual state is stored under `data/` and survives restarts. It is not part of

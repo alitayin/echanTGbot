@@ -3,12 +3,11 @@
 // When a user reaches the configured number of consecutive normal messages
 // in any group, they are treated as "trusted" across all groups.
 
-const { Level } = require('level');
-const path = require('path');
 const { NORMAL_STREAK_THRESHOLD } = require('../../../config/config.js');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
-const dbPath = process.env.NORMAL_MESSAGE_TRACKER_DB_PATH || path.join(__dirname, '../../../data/normalMessageTracker');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('NORMAL_MESSAGE_TRACKER_DB_PATH', 'normalMessageTracker');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 /**
  * @typedef {Object} NormalMessageRecord
@@ -249,6 +248,28 @@ async function markUserTrusted(userId, reason = 'manual') {
     return true;
 }
 
+async function untrustUser(userId, reason = 'manual') {
+    await ensureLoaded();
+    if (userId == null) return false;
+    const key = makeKey(userId);
+    const updated = {
+        streak: 0,
+        trusted: false,
+        lastUpdated: Date.now(),
+    };
+    normalMessageTracker.set(key, updated);
+    await persistRecord(key, updated);
+    console.log(`User ${userId} marked as untrusted (reason: ${reason})`);
+    return true;
+}
+
+async function getUserTrustRecord(userId) {
+    await ensureLoaded();
+    if (userId == null) return null;
+    const record = normalMessageTracker.get(makeKey(userId));
+    return record ? { ...record } : null;
+}
+
 /**
  * Export all tracker records for backup.
  * @returns {Promise<Array<{userId: string, streak: number, trusted: boolean, lastUpdated: number}>>}
@@ -326,7 +347,7 @@ async function importTrustedRecords(records) {
  */
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
-setInterval(async () => {
+const cleanupTimer = setInterval(async () => {
     await ensureLoaded();
     for (const [key, record] of normalMessageTracker.entries()) {
         if (!record || typeof record.lastUpdated !== 'number') {
@@ -335,6 +356,7 @@ setInterval(async () => {
         }
     }
 }, CLEANUP_INTERVAL_MS);
+cleanupTimer.unref?.();
 
 module.exports = {
     NORMAL_STREAK_THRESHOLD,
@@ -342,6 +364,8 @@ module.exports = {
     recordNormalMessage,
     resetNormalMessageStreak,
     markUserTrusted,
+    untrustUser,
+    getUserTrustRecord,
     exportTrustedRecords,
     importTrustedRecords,
 };

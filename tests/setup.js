@@ -1,4 +1,7 @@
 // Test setup file - runs before all tests
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { afterEach, beforeEach, vi } from 'vitest';
 
 const TEST_ENV_DEFAULTS = {
@@ -13,31 +16,17 @@ const TEST_ENV_DEFAULTS = {
     SECONDARY_SPAM_API_KEY: 'test-secondary-key',
     ALITAYIN_USER_ID: '42',
     ALLOWED_USERS: 'admin',
+    LOCAL_LOG_ENABLED: 'false',
+    LOG_PROCESS_ERRORS: 'false',
 };
 
 for (const [key, value] of Object.entries(TEST_ENV_DEFAULTS)) {
     if (!process.env[key]) process.env[key] = value;
 }
 
-const LEVEL_TEARDOWN_PATTERNS = [
-    'LEVEL_DATABASE_NOT_OPEN',
-    'LEVEL_LOCKED',
-    'Database is not open',
-];
-
-function isIgnorableLevelTeardownError(reason) {
-    const reasonStr = String(reason);
-    return LEVEL_TEARDOWN_PATTERNS.some(pattern => reasonStr.includes(pattern));
+if (!process.env.DATA_DIR) {
+    process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), `echan-vitest-${process.pid}-`));
 }
-
-process.on('unhandledRejection', (reason) => {
-    // Ignore LevelDB cleanup errors - they're harmless race conditions in test teardown
-    if (isIgnorableLevelTeardownError(reason)) {
-        return;
-    }
-    // Re-throw other unhandled rejections
-    throw reason;
-});
 
 beforeEach(() => {
     vi.restoreAllMocks();

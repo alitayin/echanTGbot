@@ -1,11 +1,9 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 const DEFAULT_PROTECTION_ENABLED = false;
 const STATE_KEY = 'protection';
-const dbPath = process.env.PROTECTION_STATE_DB_PATH
-  || path.join(__dirname, '../../../data/protectionSettings');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('PROTECTION_STATE_DB_PATH', 'protectionSettings');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 let cachedState = null;
 let loadPromise = null;

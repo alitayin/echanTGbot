@@ -1,9 +1,8 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 // Initialize levelDB for whitelist keywords
-const dbPath = path.join(__dirname, '../../../data/whitelistKeywords');
-let db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('WHITELIST_KEYWORD_DB_PATH', 'whitelistKeywords');
+let db = createLevelStore(dbPath, { valueEncoding: 'json' });
 let dbOpenPromise = db.open();
 
 /**
@@ -18,7 +17,7 @@ async function ensureOpen() {
         return db;
     }
     // status === 'closed' or 'new'
-    db = new Level(dbPath, { valueEncoding: 'json' });
+    db = createLevelStore(dbPath, { valueEncoding: 'json' });
     dbOpenPromise = db.open();
     await dbOpenPromise;
     return db;
@@ -156,4 +155,3 @@ module.exports = {
     getAllWhitelistKeywords,
     closeDB
 };
-

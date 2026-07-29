@@ -1,5 +1,3 @@
-const { Level } = require('level');
-const path = require('path');
 const {
     KOUSH_USER_ID,
     ALITAYIN_USER_ID,
@@ -32,13 +30,17 @@ const {
     resetNormalMessageStreak,
 } = require('../../infrastructure/storage/normalMessageTracker.js');
 const { isUserRestrictedNewcomer } = require('../../infrastructure/storage/newcomerTracker.js');
+const {
+    createLevelStore,
+    resolveStorePath,
+} = require('../../infrastructure/storage/levelStoreRegistry.js');
 
 // Constants
 const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
 const POLICY_VIOLATION_WINDOW_MS = 30 * 60 * 1000;
 const POLICY_VIOLATION_MESSAGE = 'I removed your message because new members cannot forward messages from channels or other groups, send non-whitelisted links, or post inline buttons during their first hour in this group.';
-const learnedWhitelistDbPath = path.join(__dirname, '../../../data/learnedWhitelistLinks');
-const learnedWhitelistDb = new Level(learnedWhitelistDbPath, { valueEncoding: 'json' });
+const learnedWhitelistDbPath = resolveStorePath('LEARNED_WHITELIST_DB_PATH', 'learnedWhitelistLinks');
+const learnedWhitelistDb = createLevelStore(learnedWhitelistDbPath, { valueEncoding: 'json' });
 const restrictedContentTracker = new Map();
 const STATIC_WHITELIST_HOSTS = new Set(
     Array.isArray(whitelinkConfig?.whitelistedLinks)
@@ -661,7 +663,7 @@ async function processGroupMessage(msg, bot, ports) {
     console.log(`processGroupMessage: chatId=${msg?.chat?.id} fromId=${msg?.from?.id ?? msg?.sender_chat?.id}`);
 
     if (msg.chat.type !== "group" && msg.chat.type !== "supergroup") {
-        return;
+        return false;
     }
 
     // Ignore bot messages; only track human users for trust / spam detection
@@ -670,11 +672,11 @@ async function processGroupMessage(msg, bot, ports) {
     const isFromBot = msg.from && msg.from.is_bot;
     
     if (!msg.from && !isFromChannel) {
-        return;
+        return false;
     }
     
     if (isFromBot) {
-        return;
+        return false;
     }
 
     const query = buildCombinedAnalysisQuery(msg);
@@ -693,18 +695,18 @@ async function processGroupMessage(msg, bot, ports) {
 
     if (!query.trim() && !hasImageMedia(msg)) {
         console.log('Skip empty message (no text or image)');
-        return;
+        return false;
     }
 
     if (!ports || !ports.telegramGroup || typeof ports.telegramGroup.hasMember !== 'function') {
         console.log('Ports not available, skipping spam detection');
-        return;
+        return false;
     }
     const hasAlitayin = await ports.telegramGroup.hasMember(msg.chat.id, ALITAYIN_USER_ID);
     console.log(`Has target member: ${hasAlitayin}`);
     if (!hasAlitayin) {
         console.log('Target member not in group, skipping spam detection');
-        return;
+        return false;
     }
 
     const botInfo = await bot.getMe();
@@ -737,7 +739,7 @@ async function processGroupMessage(msg, bot, ports) {
         if (channelUsername && blacklistedChannels.includes(channelUsername)) {
             console.log(`Quote/external_reply from blacklisted channel @${channelUsername}, marking as spam immediately`);
             await handleSpamDeletion(msg, bot, query);
-            return;
+            return true;
         }
     }
 
@@ -749,7 +751,7 @@ async function processGroupMessage(msg, bot, ports) {
             `User ${msg.from.id} is globally trusted (>= normal streak threshold), skipping spam detection`
         );
         await maybeLearnTrustedWhitelistEntries(msg);
-        return;
+        return false;
     }
 
     if (!isFromChannel) {
@@ -761,14 +763,14 @@ async function processGroupMessage(msg, bot, ports) {
             if (violation) {
                 console.log(`Restricted newcomer policy violation detected: ${violation}`);
                 await handlePolicyViolation(msg, bot, query, violation);
-                return;
+                return true;
             }
 
             const blockedLinks = await findBlockedLinks(msg);
             if (blockedLinks.length > 0) {
                 console.log(`Restricted newcomer blocked links detected: ${blockedLinks.join(', ')}`);
                 await handlePolicyViolation(msg, bot, query, 'blocked_link');
-                return;
+                return true;
             }
         }
     }
@@ -777,7 +779,7 @@ async function processGroupMessage(msg, bot, ports) {
     const whitelistedKeyword = await containsWhitelistKeyword(query);
     if (whitelistedKeyword) {
         console.log(`Message contains whitelisted keyword "${whitelistedKeyword}", skipping spam detection`);
-        return;
+        return false;
     }
 
     // Run in-memory cache checks before hitting the API
@@ -785,7 +787,7 @@ async function processGroupMessage(msg, bot, ports) {
     if (cacheHit) {
         console.log(`Cache hit (${cacheHit}), deleting without API call`);
         await handleSpamDeletion(msg, bot, query, true);
-        return;
+        return true;
     }
 
     // Call AI analysis API
@@ -793,7 +795,7 @@ async function processGroupMessage(msg, bot, ports) {
     const answer = await runApiAnalysis(query, imageUrls, senderId);
     if (!answer) {
         console.log('No analysis result, skip');
-        return;
+        return false;
     }
 
     if (isBotAdmin) {
@@ -804,7 +806,7 @@ async function processGroupMessage(msg, bot, ports) {
             if (!isFromChannel) {
                 await resetNormalMessageStreak(msg.from.id);
             }
-            return;
+            return true;
         }
 
         // Non-spam message from a human user in group: record as normal (only for users, not channels)
@@ -813,6 +815,7 @@ async function processGroupMessage(msg, bot, ports) {
         }
 
     }
+    return false;
 }
 
 module.exports = {

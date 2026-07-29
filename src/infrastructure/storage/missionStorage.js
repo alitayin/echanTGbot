@@ -1,9 +1,8 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 // Initialize levelDB for missions
-const dbPath = path.join(__dirname, '../../../data/missions');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('MISSION_DB_PATH', 'missions');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 /**
  * Generate a random mission ID (6 characters)
@@ -364,4 +363,3 @@ module.exports = {
     updateMissionMessageId,
     closeDB
 };
-

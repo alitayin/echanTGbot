@@ -29,7 +29,7 @@ function resetSpamRecord(userId) {
 }
 
 // Periodic cleanup of expired records
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [userId, record] of spamUserTracker.entries()) {
     if (now - record.firstSpamTime > TRACKING_WINDOW_MS) {
@@ -37,6 +37,7 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000); // every 10 minutes
+cleanupTimer.unref?.();
 
 module.exports = {
   updateSpamRecord,
@@ -44,6 +45,5 @@ module.exports = {
   resetSpamRecord,
   TRACKING_WINDOW_MS,
 };
-
 
 

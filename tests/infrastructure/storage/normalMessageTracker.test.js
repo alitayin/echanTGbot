@@ -86,4 +86,16 @@ describe('normalMessageTracker', () => {
             { userId: 'bob', streak: 2, trusted: false, lastUpdated: 25 },
         ]));
     });
+
+    it('supports manual trust, untrust, and status lookup', async () => {
+        const dbPath = createTempTrackerPath();
+        const tracker = await loadTrackerModule(dbPath);
+
+        await tracker.markUserTrusted('123', 'test');
+        expect(await tracker.getUserTrustRecord('123')).toMatchObject({ trusted: true, streak: 3 });
+
+        await tracker.untrustUser('123', 'test');
+        expect(await tracker.getUserTrustRecord('123')).toMatchObject({ trusted: false, streak: 0 });
+        expect(await tracker.isUserTrusted('123')).toBe(false);
+    });
 });

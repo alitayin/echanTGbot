@@ -134,9 +134,20 @@ function isInactiveChatMemberStatus(status) {
 function registerRoutes(bot) {
     const ports = createPorts(bot);
     const commandRouter = createCommandRouter();
+    const messageHandlers = [];
+    const handledCommands = new WeakSet();
+    const protectionDecisions = new WeakMap();
+    const STOP_MESSAGE_PIPELINE = Symbol('stop-message-pipeline');
+    const onMessage = (handler) => messageHandlers.push(handler);
+    const protectionEnabledForMessage = (msg) => {
+        if (!protectionDecisions.has(msg)) {
+            protectionDecisions.set(msg, isProtectionEnabled());
+        }
+        return protectionDecisions.get(msg);
+    };
 
-    // Listener 1: store group messages
-    bot.on('message', (msg) => {
+    // Message handlers are registered here and executed sequentially below.
+    onMessage((msg) => {
         if (isGroupMessage(msg)) {
             try {
                 addMessageToGroup(msg.chat.id, msg);
@@ -146,21 +157,22 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 2: command router - handles all /commands
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         try {
             if (isTranslateCommand(msg)) {
                 await handleTranslateCommand(msg, bot);
+                handledCommands.add(msg);
                 return;
             }
-            await commandRouter.handleMessage(msg, bot);
+            if (await commandRouter.handleMessage(msg, bot)) {
+                handledCommands.add(msg);
+            }
         } catch (error) {
             console.error('Command router error:', error);
         }
     });
 
-    // Listener 3: chronik MCP command
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         if (!msg.text) return;
         const text = msg.text.trim();
         const lower = text.toLowerCase();
@@ -169,6 +181,7 @@ function registerRoutes(bot) {
         if (!isChronikCommand) {
             return;
         }
+        handledCommands.add(msg);
         if (LIMITED_MODE) {
             await sendPromptMessage(bot, msg.chat.id, pickDisabledMsg());
             return;
@@ -182,11 +195,14 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 4: stored message commands (custom /commandname [time])
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         if (!msg.text) return;
 
         if (!msg.text.startsWith('/')) {
+            return;
+        }
+
+        if (handledCommands.has(msg)) {
             return;
         }
 
@@ -199,20 +215,6 @@ function registerRoutes(bot) {
 
         if (commandName.includes('@')) {
             commandName = commandName.split('@')[0];
-        }
-
-        const knownCommands = [
-            'report', 'addlicense', 'removelicense', 'listlicenses',
-            'signup', 'getaddress', 'listaddresses', 'send',
-            'exportdata', 'importdata', 'whitelisting', 'listwhitelist',
-            'removewhitelist', 'message', 'showmessage', 'deletemessage',
-            'stopmessage', 'listscheduled', 'mission', 'showmission', 'deletemission',
-            'start', 'help', 'price', 'ava', 'explorer', 'wallet', 'time', 'translate', 'chronik', 'mcp',
-            'enableprotection', 'disableprotection', 'protectionstatus'
-        ];
-
-        if (knownCommands.includes(commandName.toLowerCase())) {
-            return;
         }
 
         if (!commandName) {
@@ -235,8 +237,7 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 5: mission completion (✅ or "done" replies)
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
         if (!isGroup || !msg.reply_to_message) {
             return;
@@ -259,8 +260,7 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 6: main conversation handler
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         if (!shouldHandleRequest(msg)) {
             return;
         }
@@ -343,7 +343,7 @@ function registerRoutes(bot) {
     });
 
     // Trusted-user translation is independent from the protection switch.
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         try {
             await handleTrustedAutoTranslation(msg, bot);
         } catch (error) {
@@ -382,14 +382,13 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 8: check new member usernames
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         if (!isGroup) {
             return;
         }
 
-        if (!await isProtectionEnabled()) {
+        if (!await protectionEnabledForMessage(msg)) {
             return;
         }
 
@@ -461,14 +460,13 @@ function registerRoutes(bot) {
         }
     });
 
-    // Listener 9: group spam detection
-    bot.on('message', async (msg) => {
+    onMessage(async (msg) => {
         const isGroup = msg.chat.type === "group" || msg.chat.type === "supergroup";
         if (!isGroup) {
             return;
         }
 
-        if (!await isProtectionEnabled()) {
+        if (!await protectionEnabledForMessage(msg)) {
             return;
         }
 
@@ -497,12 +495,13 @@ function registerRoutes(bot) {
             return;
         }
 
-        await processGroupMessage(msg, bot, ports);
+        if (await processGroupMessage(msg, bot, ports)) {
+            return STOP_MESSAGE_PIPELINE;
+        }
     });
 
-    // Listener 10: anti-impersonation
-    bot.on('message', async (msg) => {
-        if (!await isProtectionEnabled()) {
+    onMessage(async (msg) => {
+        if (!await protectionEnabledForMessage(msg)) {
             return;
         }
 
@@ -533,6 +532,19 @@ function registerRoutes(bot) {
         const impersonationResult = await checkImpersonation(user, msg.chat.id, bot);
         if (impersonationResult.isImpersonation) {
             await handleImpersonation(msg, bot, impersonationResult);
+        }
+    });
+
+    bot.on('message', async (msg) => {
+        for (const handler of messageHandlers) {
+            try {
+                const result = await handler(msg);
+                if (result === STOP_MESSAGE_PIPELINE) {
+                    break;
+                }
+            } catch (error) {
+                console.error('Message pipeline handler failed:', error);
+            }
         }
     });
 

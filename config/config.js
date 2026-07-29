@@ -39,6 +39,8 @@ module.exports = {
   SECONDARY_SPAM_API_KEY: process.env.SECONDARY_SPAM_API_KEY,
   SECONDARY_SPAM_API_KEY_BACKUP: process.env.SECONDARY_SPAM_API_KEY_BACKUP,
   EXTERNAL_API_KEY: process.env.EXTERNAL_API_KEY,
+  AI_REQUEST_TIMEOUT_MS: parseInt(process.env.AI_REQUEST_TIMEOUT_MS || String(120 * 1000)),
+  AI_UPLOAD_TIMEOUT_MS: parseInt(process.env.AI_UPLOAD_TIMEOUT_MS || String(60 * 1000)),
 
   // --- Telegram ---
   TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,

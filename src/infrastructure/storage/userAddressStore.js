@@ -1,5 +1,4 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 const {
     getAllMessages,
     getAllScheduledMessages,
@@ -9,8 +8,8 @@ const {
 const { exportTrustedRecords, importTrustedRecords } = require('./normalMessageTracker.js');
 
 // Initialize levelDB
-const dbPath = path.join(__dirname, '../../../data/userAddresses');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('USER_ADDRESS_DB_PATH', 'userAddresses');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 const DEFAULT_BALANCE = 20;
 
 /**
@@ -357,4 +356,3 @@ module.exports = {
     importAllData,
     closeDB
 };
-

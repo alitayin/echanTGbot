@@ -31,7 +31,6 @@ const state = vi.hoisted(() => ({
     fetchMessageAnalysis: vi.fn(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 })),
     fetchMessageAnalysisWithImage: vi.fn(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 })),
     performSecondarySpamCheck: vi.fn(async () => false),
-    translateToEnglishIfTargetGroup: vi.fn(async () => true),
     isUserTrusted: vi.fn(async () => state.trusted),
     isUserRestrictedNewcomer: vi.fn(async () => state.restrictedNewcomer),
     recordNormalMessage: vi.fn(async () => true),
@@ -49,10 +48,6 @@ vi.mock('../../../src/infrastructure/ai/messageAnalysis.js', () => ({
 
 vi.mock('../../../src/infrastructure/ai/secondarySpamCheck.js', () => ({
     performSecondarySpamCheck: state.performSecondarySpamCheck,
-}));
-
-vi.mock('../../../src/infrastructure/ai/translation.js', () => ({
-    translateToEnglishIfTargetGroup: state.translateToEnglishIfTargetGroup,
 }));
 
 vi.mock('../../../src/infrastructure/storage/spamUserStore.js', () => ({
@@ -424,7 +419,6 @@ describe('processGroupMessage policy integration', () => {
         state.fetchMessageAnalysisWithImage.mockImplementation(async () => ({ is_english: true, spam: false, deviation: 0, suspicion: 0, inducement: 0 }));
         state.performSecondarySpamCheck.mockClear();
         state.performSecondarySpamCheck.mockImplementation(async () => false);
-        state.translateToEnglishIfTargetGroup.mockClear();
         state.isUserTrusted.mockClear();
         state.isUserTrusted.mockImplementation(async () => state.trusted);
         state.isUserRestrictedNewcomer.mockClear();
@@ -614,8 +608,9 @@ describe('processGroupMessage policy integration', () => {
             },
         });
 
-        await processGroupMessage(msg, bot, ports);
+        const handled = await processGroupMessage(msg, bot, ports);
 
+        expect(handled).toBe(true);
         expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), msg.chat.id, msg.message_id);
         expect(bot.banChatMember).toHaveBeenCalledWith(msg.chat.id, msg.from.id);
     });

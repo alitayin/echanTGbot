@@ -1,11 +1,10 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 const NEWCOMER_RESTRICTION_WINDOW_MS = 60 * 60 * 1000;
 const STALE_RECORD_TTL_MS = 24 * 60 * 60 * 1000;
 
-const dbPath = process.env.NEWCOMER_TRACKER_DB_PATH || path.join(__dirname, '../../../data/newcomerTracker');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('NEWCOMER_TRACKER_DB_PATH', 'newcomerTracker');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 const newcomerTracker = new Map();
 
@@ -119,7 +118,7 @@ async function isUserRestrictedNewcomer(chatId, userId, now = Date.now()) {
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
-setInterval(async () => {
+const cleanupTimer = setInterval(async () => {
     await ensureLoaded();
     const now = Date.now();
     for (const [key, record] of newcomerTracker.entries()) {
@@ -130,6 +129,7 @@ setInterval(async () => {
         }
     }
 }, CLEANUP_INTERVAL_MS);
+cleanupTimer.unref?.();
 
 module.exports = {
     NEWCOMER_RESTRICTION_WINDOW_MS,

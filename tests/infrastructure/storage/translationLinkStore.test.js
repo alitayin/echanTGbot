@@ -45,4 +45,20 @@ describe('translationLinkStore', () => {
         expect(await store.deleteLinkedTranslations(bot, -1001, 999)).toBe(0);
         expect(bot.deleteMessage).not.toHaveBeenCalled();
     });
+
+    it('prunes expired links', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'translation-links-'));
+        const store = await loadStore(path.join(dir, 'db'));
+
+        const now = Date.now();
+        await store.recordTranslationLink(-1001, 1, 11);
+        await store.recordTranslationLink(-1001, 2, 12);
+        const ttlMs = 48 * 60 * 60 * 1000;
+        const expiredAt = now + ttlMs + 60_000;
+        vi.spyOn(Date, 'now').mockReturnValue(expiredAt);
+
+        expect(await store.pruneExpiredLinks(expiredAt)).toBe(2);
+        expect(await store.getLink(-1001, 1)).toBeNull();
+        expect(await store.getLink(-1001, 2)).toBeNull();
+    });
 });

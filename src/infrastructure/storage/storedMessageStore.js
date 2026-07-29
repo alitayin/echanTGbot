@@ -1,9 +1,8 @@
-const { Level } = require('level');
-const path = require('path');
+const { createLevelStore, resolveStorePath } = require('./levelStoreRegistry.js');
 
 // Initialize levelDB for stored messages
-const dbPath = path.join(__dirname, '../../../data/storedMessages');
-const db = new Level(dbPath, { valueEncoding: 'json' });
+const dbPath = resolveStorePath('STORED_MESSAGE_DB_PATH', 'storedMessages');
+const db = createLevelStore(dbPath, { valueEncoding: 'json' });
 
 /**
  * Save a message with a command name
@@ -266,4 +265,3 @@ module.exports = {
     getAllScheduledMessages,
     closeDB
 };
-

@@ -1,5 +1,9 @@
 // echanApi.js
 const axios = require("axios");
+const {
+  AI_REQUEST_TIMEOUT_MS,
+  AI_UPLOAD_TIMEOUT_MS,
+} = require('../../../config/config.js');
 
 class EchanApiClient {
   constructor(apiKey, apiEndpoint) {
@@ -22,7 +26,7 @@ class EchanApiClient {
 
     const response = await axios.post(this.apiEndpoint, requestData, {
       headers: this.defaultHeaders,
-      timeout: 500 * 1000,
+      timeout: AI_REQUEST_TIMEOUT_MS,
     });
 
     return response.data;
@@ -69,7 +73,7 @@ class EchanApiClient {
         Authorization: this.defaultHeaders.Authorization,
         ...form.getHeaders(),
       },
-      timeout: 60 * 1000,
+      timeout: AI_UPLOAD_TIMEOUT_MS,
     });
     return response.data;
   }
@@ -85,7 +89,7 @@ class EchanApiClient {
 
     const response = await axios.post(this.apiEndpoint, requestData, {
       headers: this.defaultHeaders,
-      timeout: 600 * 1000,
+      timeout: AI_REQUEST_TIMEOUT_MS,
       responseType: 'stream'
     });
 
@@ -186,7 +190,7 @@ class EchanApiClient {
 
     const response = await axios.post(this.apiEndpoint, requestData, {
       headers: this.defaultHeaders,
-      timeout: 500 * 1000,
+      timeout: AI_REQUEST_TIMEOUT_MS,
     });
     return response.data;
   }

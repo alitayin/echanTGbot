@@ -7,10 +7,9 @@ const {
 } = require('../../../config/config.js');
 
 function makeClients() {
-    return [
-        new EchanApiClient(ADDITIONAL_API_KEY, API_ENDPOINT),
-        new EchanApiClient(ADDITIONAL_API_KEY_BACKUP, API_ENDPOINT),
-    ];
+    return [ADDITIONAL_API_KEY, ADDITIONAL_API_KEY_BACKUP]
+        .filter((key) => typeof key === 'string' && key.trim())
+        .map((key) => new EchanApiClient(key.trim(), API_ENDPOINT));
 }
 
 const CLIENTS = makeClients();

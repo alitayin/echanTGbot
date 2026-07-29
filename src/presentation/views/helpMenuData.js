@@ -41,10 +41,13 @@ const helpMenuData = {
             ]
         },
         help_users: {
-            text: '👥 <b>Community User Management</b>\n\nManage community user addresses:',
+            text: '👥 <b>Community User Management</b>\n\nManage addresses and trusted translation users:',
             keyboard: [
                 [{ text: '🔍 /getaddress - Get User Address', callback_data: 'cmd_getaddress' }],
                 [{ text: '📋 /listaddresses - List All Addresses', callback_data: 'cmd_listaddresses' }],
+                [{ text: '/trustuser - Trust User', callback_data: 'cmd_trustuser' }],
+                [{ text: '/untrustuser - Untrust User', callback_data: 'cmd_untrustuser' }],
+                [{ text: '/truststatus - Trust Status', callback_data: 'cmd_truststatus' }],
                 [{ text: '🔙 Back to Main Menu', callback_data: 'help_main' }]
             ]
         },
@@ -147,6 +150,18 @@ const helpMenuData = {
             text: '🛡️ <b>/disableprotection</b>\n\nDisable all automatic and manual protection features globally. Translation and LLM replies stay active.\n\n<b>Note:</b>\nAdmin only; private chat only.',
             keyboard: [[{ text: '🔙 Back', callback_data: 'help_protection' }]]
         },
+        cmd_trustuser: {
+            text: '✅ <b>/trustuser</b>\n\nAllow a Telegram user to receive trusted-user translations.\n\n<b>Usage:</b>\n<code>/trustuser telegram_user_id</code>\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_users' }]]
+        },
+        cmd_untrustuser: {
+            text: '🚫 <b>/untrustuser</b>\n\nRemove a Telegram user from trusted translation users.\n\n<b>Usage:</b>\n<code>/untrustuser telegram_user_id</code>\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_users' }]]
+        },
+        cmd_truststatus: {
+            text: '🔎 <b>/truststatus</b>\n\nShow a Telegram user\'s trust state and normal-message streak.\n\n<b>Usage:</b>\n<code>/truststatus telegram_user_id</code>\n\n<b>Note:</b>\nAdmin only; private chat only.',
+            keyboard: [[{ text: '🔙 Back', callback_data: 'help_users' }]]
+        },
         cmd_addlicense: {
             text: '➕ <b>/addlicense</b>\n\nGrant a user moderator permission to use /report.\n\n<b>Usage:</b>\n<code>/addlicense @username</code>\n\n<b>Note:</b>\nAdmin only',
             keyboard: [[{ text: '🔙 Back', callback_data: 'help_mods' }]]
@@ -243,4 +258,3 @@ function getHelpMenu(callbackData, isAdmin) {
 }
 
 module.exports = { helpMenuData, getHelpMenu };
-

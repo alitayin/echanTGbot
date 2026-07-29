@@ -62,7 +62,7 @@ describe('GithubVersionChecker.check()', () => {
 
     beforeEach(() => {
         bot = { sendMessage: vi.fn().mockResolvedValue({}) };
-        checker = new GithubVersionChecker(bot);
+        checker = new GithubVersionChecker(bot, { localCommitSha: null });
         vi.clearAllMocks();
     });
 
@@ -176,6 +176,64 @@ describe('GithubVersionChecker.check()', () => {
 
         await expect(checker.check()).resolves.toBeUndefined();
         expect(bot.sendMessage).not.toHaveBeenCalled();
+    });
+});
+
+describe('GithubVersionChecker commit checks', () => {
+    let bot;
+    let http;
+
+    beforeEach(() => {
+        bot = { sendMessage: vi.fn().mockResolvedValue({}) };
+        http = { get: vi.fn() };
+    });
+
+    it('notifies when remote main has a different commit at the same version', async () => {
+        http.get.mockResolvedValue({
+            data: {
+                sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                commit: { message: 'fix: repair spam workflow\n\nDetails' },
+                html_url: 'https://github.com/alitayin/echanTGbot/commit/bbbbbbb',
+            },
+        });
+        const checker = new GithubVersionChecker(bot, {
+            localCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            http,
+        });
+
+        await checker.check();
+
+        expect(bot.sendMessage).toHaveBeenCalledOnce();
+        expect(bot.sendMessage.mock.calls[0][1]).toContain('fix: repair spam workflow');
+        expect(bot.sendMessage.mock.calls[0][1]).toContain('bbbbbbb');
+    });
+
+    it('does not notify for the current commit or repeat a commit notification', async () => {
+        const currentSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+        http.get.mockResolvedValue({ data: { sha: currentSha, commit: { message: 'same' } } });
+        const checker = new GithubVersionChecker(bot, { localCommitSha: currentSha, http });
+        await checker.check();
+        expect(bot.sendMessage).not.toHaveBeenCalled();
+
+        http.get.mockResolvedValue({ data: { sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' } });
+        await checker.check();
+        await checker.check();
+        expect(bot.sendMessage).toHaveBeenCalledOnce();
+    });
+
+    it('falls back to semantic versions when commit lookup is unavailable', async () => {
+        http.get
+            .mockRejectedValueOnce(new Error('GitHub commit API unavailable'))
+            .mockResolvedValueOnce({ data: { version: '99.0.0' } })
+            .mockResolvedValueOnce({ data: null });
+        const checker = new GithubVersionChecker(bot, {
+            localCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            http,
+        });
+
+        await checker.check();
+        expect(bot.sendMessage).toHaveBeenCalledOnce();
+        expect(bot.sendMessage.mock.calls[0][1]).toContain('v99.0.0');
     });
 });
 
