@@ -80,7 +80,7 @@ function privateOnlyMiddleware(msg, bot, next) {
 
 async function protectionOnlyMiddleware(msg, bot, next) {
     if (!await isProtectionEnabled()) {
-        await sendPromptMessage(bot, msg.chat.id, 'Protection is disabled.');
+        //await sendPromptMessage(bot, msg.chat.id, 'Protection is disabled.');
         return;
     }
     return next();
