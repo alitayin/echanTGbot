@@ -24,6 +24,10 @@ async function translateToEnglishIfTargetGroup(msg, bot) {
   if (!query || query.length < 5) {
     return false;
   }
+  // Ignore messages that are just URLs
+  if (/^https?:\/\/\S+$/.test(query)) {
+    return false;
+}
 
   try {
     const translatedText = await translateText(query, 'English', msg.from.id);
