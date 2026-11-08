@@ -46,6 +46,13 @@ describe('protection commands', () => {
         );
     });
 
+    it('silently skips protection-only commands while protection is disabled', async () => {
+        const bot = makeBot();
+
+        expect(await router.handleMessage(makeMessage('/report'), bot)).toBe(true);
+        expect(bot.sendMessage).not.toHaveBeenCalled();
+    });
+
     it('does not allow the command in a group', async () => {
         const bot = makeBot();
         const msg = makeMessage('/enableprotection', {

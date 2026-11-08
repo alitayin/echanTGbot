@@ -112,7 +112,15 @@ vi.mock('../../../src/infrastructure/telegram/promptMessenger.js', () => ({
     sendPromptMessage: vi.fn(async (bot, chatId, text, options = {}) => bot.sendMessage(chatId, text, options)),
 }));
 
-const { processGroupMessage, buildCombinedAnalysisQuery } = require('../../../src/application/usecases/spamHandler.js');
+const {
+    processGroupMessage,
+    buildCombinedAnalysisQuery,
+    buildMentionTarget,
+    getMessageUrls,
+    getPolicyViolationMessage,
+    normalizeUrl,
+    normalizeWhitelistHost,
+} = require('../../../src/application/usecases/spamHandler.js');
 const { markUserTrusted, resetNormalMessageStreak } = require('../../../src/infrastructure/storage/normalMessageTracker.js');
 const { recordNewcomerJoin, clearNewcomerJoin } = require('../../../src/infrastructure/storage/newcomerTracker.js');
 
@@ -389,6 +397,44 @@ describe('buildCombinedAnalysisQuery', () => {
     });
 });
 
+describe('newcomer protection message and URL helpers', () => {
+    it('uses a reason-specific warning for a blocked link', () => {
+        expect(getPolicyViolationMessage('blocked_link')).toBe(
+            'I removed that link because new members can only share approved links during their first hour in this group.'
+        );
+    });
+
+    it('falls back to a safe generic warning for unknown reasons', () => {
+        expect(getPolicyViolationMessage('future_reason')).toContain('some content is restricted');
+    });
+
+    it('escapes a first name when a username is unavailable', () => {
+        expect(buildMentionTarget({ id: 123, first_name: 'A&B <helper>' })).toBe(
+            '<a href="tg://user?id=123">A&amp;B &lt;helper&gt;</a>'
+        );
+    });
+
+    it('normalizes common URL punctuation and uppercase schemes', () => {
+        expect(normalizeUrl('HTTPS://github.com/path).')).toBe('https://github.com/path');
+        expect(getMessageUrls({ text: 'Read https://github.com/project.' })).toEqual([
+            'https://github.com/project',
+        ]);
+    });
+
+    it('extracts hidden text-link entity URLs', () => {
+        expect(getMessageUrls({
+            text: 'Open this',
+            entities: [{ type: 'text_link', offset: 0, length: 4, url: 'https://example.com/offer' }],
+        })).toEqual(['https://example.com/offer']);
+    });
+
+    it('normalizes whitelist entries to host names', () => {
+        expect(normalizeWhitelistHost('https://www.github.com/')).toBe('github.com');
+        expect(normalizeWhitelistHost('github.com.')).toBe('github.com');
+        expect(normalizeWhitelistHost('')).toBeNull();
+    });
+});
+
 describe('processGroupMessage policy integration', () => {
     beforeEach(async () => {
         state.trusted = false;
@@ -476,7 +522,7 @@ describe('processGroupMessage policy integration', () => {
         expect(bot.forwardMessage).toHaveBeenCalledWith(expect.anything(), msg.chat.id, msg.message_id);
         expect(bot.sendMessage).toHaveBeenCalledWith(
             msg.chat.id,
-            '@alice I removed your message because new members cannot forward messages from channels or other groups, send non-whitelisted links, or post inline buttons during their first hour in this group.',
+            '@alice I removed this forwarded post because new members cannot forward channel posts during their first hour in this group.',
             { parse_mode: 'HTML' }
         );
         expect(bot.banChatMember).not.toHaveBeenCalled();
@@ -537,12 +583,20 @@ describe('processGroupMessage policy integration', () => {
     it('blocks non-whitelisted links for restricted newcomers', async () => {
         const bot = createBot();
         const ports = createPorts();
-        const msg = createMessage({ text: 'https://x.com/random_user/status/99' });
+        const msg = createMessage({
+            text: 'https://x.com/random_user/status/99',
+            from: { id: 124, first_name: 'Link User', username: 'link_user' },
+        });
         await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
 
         await processGroupMessage(msg, bot, ports);
 
         expect(bot.deleteMessage).toHaveBeenCalledWith(msg.chat.id, msg.message_id);
+        expect(bot.sendMessage).toHaveBeenCalledWith(
+            msg.chat.id,
+            '@link_user I removed that link because new members can only share approved links during their first hour in this group.',
+            { parse_mode: 'HTML' }
+        );
     });
 
     it('blocks inline keyboard buttons for restricted newcomers', async () => {
@@ -587,6 +641,20 @@ describe('processGroupMessage policy integration', () => {
         const bot = createBot();
         const ports = createPorts();
         const msg = createMessage({ text: 'https://e.cash/build' });
+        await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
+
+        await processGroupMessage(msg, bot, ports);
+
+        expect(bot.deleteMessage).not.toHaveBeenCalled();
+    });
+
+    it('allows a whitelisted link followed by sentence punctuation', async () => {
+        const bot = createBot();
+        const ports = createPorts();
+        const msg = createMessage({
+            text: 'Read https://github.com/project.',
+            from: { id: 125, first_name: 'Punctuation User', username: 'punctuation_user' },
+        });
         await recordNewcomerJoin(msg.chat.id, msg.from.id, Date.now());
 
         await processGroupMessage(msg, bot, ports);

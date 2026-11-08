@@ -38,15 +38,16 @@ const {
 // Constants
 const MAX_FALLBACK_MESSAGE_LENGTH = 500; // Telegram message preview limit for spam notifications
 const POLICY_VIOLATION_WINDOW_MS = 30 * 60 * 1000;
-const POLICY_VIOLATION_MESSAGE = 'I removed your message because new members cannot forward messages from channels or other groups, send non-whitelisted links, or post inline buttons during their first hour in this group.';
+const POLICY_VIOLATION_MESSAGES = Object.freeze({
+    channel_forward: 'I removed this forwarded post because new members cannot forward channel posts during their first hour in this group.',
+    group_forward: 'I removed this forwarded post because new members cannot forward messages from other groups during their first hour in this group.',
+    inline_buttons: 'I removed this message because new members cannot post inline buttons during their first hour in this group.',
+    blocked_link: 'I removed that link because new members can only share approved links during their first hour in this group.',
+    default: 'I removed this message because some content is restricted during your first hour in this group.',
+});
 const learnedWhitelistDbPath = resolveStorePath('LEARNED_WHITELIST_DB_PATH', 'learnedWhitelistLinks');
 const learnedWhitelistDb = createLevelStore(learnedWhitelistDbPath, { valueEncoding: 'json' });
 const restrictedContentTracker = new Map();
-const STATIC_WHITELIST_HOSTS = new Set(
-    Array.isArray(whitelinkConfig?.whitelistedLinks)
-        ? whitelinkConfig.whitelistedLinks.map((entry) => String(entry).toLowerCase().trim()).filter(Boolean)
-        : []
-);
 
 const {
     isSpamMessage,
@@ -206,9 +207,44 @@ function buildSenderContext(msg) {
     return { isFromChannel, senderId };
 }
 
+function trimUrlDelimiters(rawUrl) {
+    let value = String(rawUrl || '').trim();
+    value = value.replace(/[.,!?;:]+$/g, '');
+
+    while (value.endsWith(')')) {
+        const openCount = (value.match(/\(/g) || []).length;
+        const closeCount = (value.match(/\)/g) || []).length;
+        if (closeCount <= openCount) break;
+        value = value.slice(0, -1);
+    }
+
+    return value;
+}
+
+function normalizeWhitelistHost(value) {
+    const candidate = String(value || '').trim();
+    if (!candidate) return null;
+
+    try {
+        const withScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(candidate)
+            ? candidate
+            : `https://${candidate}`;
+        return new URL(withScheme).hostname.toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+    } catch {
+        return candidate.toLowerCase().replace(/^www\./, '').replace(/[./]+$/, '');
+    }
+}
+
+const STATIC_WHITELIST_HOSTS = new Set(
+    Array.isArray(whitelinkConfig?.whitelistedLinks)
+        ? whitelinkConfig.whitelistedLinks.map((entry) => normalizeWhitelistHost(entry)).filter(Boolean)
+        : []
+);
+
 function normalizeUrl(rawUrl) {
     try {
-        const parsed = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`);
+        const candidate = trimUrlDelimiters(rawUrl);
+        const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(candidate) ? candidate : `https://${candidate}`);
         parsed.hash = '';
         const entries = Array.from(parsed.searchParams.entries())
             .filter(([key]) => !key.toLowerCase().startsWith('utm_'))
@@ -224,6 +260,16 @@ function normalizeUrl(rawUrl) {
 
 function getMessageUrls(msg) {
     const parts = [msg?.text, msg?.caption];
+
+    for (const entities of [msg?.entities, msg?.caption_entities]) {
+        if (!Array.isArray(entities)) continue;
+        for (const entity of entities) {
+            if (entity?.type === 'text_link' && entity.url) {
+                parts.push(entity.url);
+            }
+        }
+    }
+
     if (Array.isArray(msg?.reply_markup?.inline_keyboard)) {
         for (const row of msg.reply_markup.inline_keyboard) {
             if (!Array.isArray(row)) continue;
@@ -253,7 +299,7 @@ function getMessageUrls(msg) {
 }
 
 function isStaticWhitelistedHost(hostname) {
-    const host = String(hostname || '').toLowerCase();
+    const host = String(hostname || '').toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
     for (const allowedHost of STATIC_WHITELIST_HOSTS) {
         if (host === allowedHost || host.endsWith(`.${allowedHost}`)) {
             return true;
@@ -444,6 +490,34 @@ function updateRestrictedContentRecord(chatId, userId, reason) {
     return next;
 }
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[character]));
+}
+
+function buildMentionTarget(user) {
+    const username = String(user?.username || '').trim();
+    if (username) {
+        return `@${escapeHtml(username)}`;
+    }
+
+    const userId = String(user?.id ?? '').trim();
+    const label = escapeHtml(String(user?.first_name || 'user').trim() || 'user');
+    if (/^\d+$/.test(userId)) {
+        return `<a href="tg://user?id=${userId}">${label}</a>`;
+    }
+    return label;
+}
+
+function getPolicyViolationMessage(reason) {
+    return POLICY_VIOLATION_MESSAGES[reason] || POLICY_VIOLATION_MESSAGES.default;
+}
+
 async function handlePolicyViolation(msg, bot, query, reason) {
     const violationRecord = updateRestrictedContentRecord(msg.chat.id, msg.from.id, reason);
     await resetNormalMessageStreak(msg.from.id);
@@ -454,10 +528,7 @@ async function handlePolicyViolation(msg, bot, query, reason) {
     }
 
     await deleteMessage(bot, msg.chat.id, msg.message_id);
-    const mentionTarget = msg.from?.username
-        ? `@${msg.from.username}`
-        : `<a href="tg://user?id=${msg.from.id}">${msg.from.first_name || 'user'}</a>`;
-    const warningText = `${mentionTarget} ${POLICY_VIOLATION_MESSAGE}`;
+    const warningText = `${buildMentionTarget(msg.from)} ${getPolicyViolationMessage(reason)}`;
     const forwardSuccess = await forwardMessage(bot, NOTIFICATION_GROUP_ID, msg.chat.id, msg.message_id);
     if (!forwardSuccess) {
         const fallbackInfo = `⚠️ Could not forward restricted message (ID: ${msg.message_id})\n\nContent:\n${truncate(query || buildCombinedAnalysisQuery(msg), MAX_FALLBACK_MESSAGE_LENGTH)}`;
@@ -821,4 +892,9 @@ async function processGroupMessage(msg, bot, ports) {
 module.exports = {
     processGroupMessage,
     buildCombinedAnalysisQuery,
+    buildMentionTarget,
+    getMessageUrls,
+    getPolicyViolationMessage,
+    normalizeUrl,
+    normalizeWhitelistHost,
 };

@@ -102,6 +102,13 @@ The manual state is stored under `data/` and survives restarts. It is not part o
 Git, so a fresh checkout starts with protection disabled. Translation and LLM
 replies remain available while protection is disabled.
 
+When protection is enabled, newly joined members have a one-hour onboarding
+restriction. Channel or cross-group forwards, inline buttons, and links outside
+the configured whitelist are removed during that window. The bot sends a short
+reason-specific notice for the first violation and records repeated violations
+for moderator review; it stays quiet about disabled protection when a
+protection-only command is used while protection is off.
+
 When eChan deletes an original message, it also deletes translations linked to
 that message. Telegram does not notify regular bots when a user or another admin
 manually deletes a message, so external manual deletions cannot be cascaded.
