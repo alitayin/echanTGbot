@@ -18,4 +18,21 @@ describe('getFallbackPriceData', () => {
 
         await expect(getFallbackPriceData()).rejects.toThrow('eCash data not found in fallback API');
     });
+
+    it('keeps XEC market data when global market cap is unavailable', async () => {
+        providerMocks.fetchCoinGeckoMarkets.mockResolvedValue([{
+            current_price: 0.00004,
+            price_change_percentage_24h: 2.5,
+            market_cap: 1000000,
+            total_volume: 50000,
+        }]);
+        providerMocks.fetchCoinGeckoGlobal.mockResolvedValue(null);
+        providerMocks.fetchCMCRank.mockResolvedValue(250);
+
+        const result = await getFallbackPriceData();
+
+        expect(result.currentPrice).toBe(0.00004);
+        expect(result.priceChange1h).toBeNull();
+        expect(result.totalCryptoMarketCap).toBeNull();
+    });
 });

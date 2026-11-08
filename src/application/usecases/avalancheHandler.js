@@ -8,8 +8,11 @@ async function getAvalancheData() {
             fetchXecSimplePrice()
         ]);
 
-        const xecPrice = priceData.ecash?.usd || 0;
-        const totalStakedValue = summaryData.totalStake * xecPrice;
+        const reportedXecPrice = priceData?.ecash?.usd;
+        const xecPrice = Number.isFinite(reportedXecPrice) ? reportedXecPrice : null;
+        const totalStakedValue = Number.isFinite(summaryData.totalStake) && xecPrice !== null
+            ? summaryData.totalStake * xecPrice
+            : null;
 
         return {
             totalStake: summaryData.totalStake,
@@ -40,4 +43,4 @@ async function handleAvalancheCommand() {
 module.exports = {
     getAvalancheData,
     handleAvalancheCommand
-}; 
+};

@@ -12,14 +12,17 @@ function normalizeLocation(value) {
 
 function findExactCountry(input) {
     const normalized = normalizeLocation(input);
-    const countryName = CITY_TO_COUNTRY[normalized]
+    const cityMatch = Object.prototype.hasOwnProperty.call(CITY_TO_COUNTRY, normalized)
+        ? CITY_TO_COUNTRY[normalized]
+        : null;
+    const countryName = cityMatch
         || COUNTRIES.find(country => normalizeLocation(country.name) === normalized)?.name;
 
     return countryName ? COUNTRIES.find(country => country.name === countryName) || null : null;
 }
 
 function resolveInputs(inputs) {
-    const values = Array.isArray(inputs) ? inputs : [];
+    const values = inputs;
     const resolved = [];
     const unrecognizedInputs = [];
     let pendingUnknown = [];
@@ -73,15 +76,29 @@ function resolveInputs(inputs) {
     return { resolved, unrecognizedInputs };
 }
 
+function normalizeTimeInputs(inputs) {
+    const values = Array.isArray(inputs)
+        ? inputs
+        : typeof inputs === 'string'
+            ? inputs.trim().split(/\s+/)
+            : [];
+
+    return values
+        .filter(value => typeof value === 'string')
+        .map(value => value.trim())
+        .filter(Boolean);
+}
+
 async function handleTimeCommand(inputs = []) {
     try {
         const now = new Date();
         const results = [];
         const seenOffsets = new Set();
         const seenTimezones = new Set();
-        const { resolved, unrecognizedInputs } = resolveInputs(inputs);
+        const inputList = normalizeTimeInputs(inputs);
+        const { resolved, unrecognizedInputs } = resolveInputs(inputList);
 
-        if (inputs.length > 0) {
+        if (inputList.length > 0) {
             for (const input of resolved) {
                 if (input.type === 'offset') {
                     const utcOffset = input.value;

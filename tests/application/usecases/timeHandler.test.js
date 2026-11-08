@@ -26,4 +26,14 @@ describe('handleTimeCommand', () => {
         expect(result.times.map(({ name }) => name)).toEqual(['China']);
         expect(result.unrecognizedInputs).toEqual(['New Atlantis']);
     });
+
+    it('normalizes string, null, and mixed-type inputs safely', async () => {
+        const fromString = await handleTimeCommand('New York');
+        const fromNull = await handleTimeCommand(null);
+        const fromMixed = await handleTimeCommand([null, 'UTC+8']);
+
+        expect(fromString.times.map(({ name }) => name)).toEqual(['USA']);
+        expect(fromNull.times).toEqual([]);
+        expect(fromMixed.times.map(({ name }) => name)).toEqual(['UTC+8']);
+    });
 });

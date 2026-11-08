@@ -36,8 +36,11 @@ function parseUTCOffset(input) {
     return null;
 }
 
-/** Format a Date using a numeric UTC hour offset. */
+/** Format a Date using a numeric UTC hour offset. Returns null for invalid input. */
 function formatTimeForUTCOffset(date, offset) {
+    if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return null;
+    if (!Number.isFinite(offset) || offset < -12 || offset > 14) return null;
+
     const utcTime = date.getTime() + date.getTimezoneOffset() * 60000;
     const targetTime = new Date(utcTime + offset * 3600000);
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -56,9 +59,11 @@ function formatTimeForUTCOffset(date, offset) {
  * Returns a { name, tz } object or null.
  */
 function findCountry(input) {
+    if (typeof input !== 'string' || !input.trim()) return null;
+
     const normalized = input.toLowerCase().trim().replace(/[\s-]/g, '');
 
-    if (CITY_TO_COUNTRY[normalized]) {
+    if (Object.prototype.hasOwnProperty.call(CITY_TO_COUNTRY, normalized)) {
         const countryName = CITY_TO_COUNTRY[normalized];
         const country = COUNTRIES.find(c => c.name === countryName);
         if (country) {
@@ -67,8 +72,8 @@ function findCountry(input) {
         }
     }
 
-    let bestMatch = COUNTRIES.find(country =>
-        country.name.toLowerCase() === normalized
+    const bestMatch = COUNTRIES.find(country =>
+        country.name.toLowerCase().replace(/[\s-]/g, '') === normalized
     );
 
     if (bestMatch) {

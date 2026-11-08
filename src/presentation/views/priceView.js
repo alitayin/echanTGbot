@@ -1,5 +1,15 @@
 const { formatPrice, formatPercentage, formatLargeNumber } = require('../../domain/formatting/numberFormat.js');
 
+function formatMetric(value, formatter) {
+    return typeof value === 'number' && Number.isFinite(value)
+        ? formatter(value)
+        : 'N/A';
+}
+
+function formatRank(rank) {
+    return Number.isInteger(rank) && rank > 0 ? String(rank) : 'N/A';
+}
+
 /** Render price message. */
 function renderPriceMessage(priceData) {
     const {
@@ -14,14 +24,14 @@ function renderPriceMessage(priceData) {
 
     return `📈 eCash (XEC) Price Update
 
-Current Price: $${formatPrice(currentPrice)}
-Price Change (%) 1h: ${formatPercentage(priceChange1h)}
-Price Change (%) 24h: ${formatPercentage(priceChange24h)}
-Market Cap: ${formatLargeNumber(marketCap)}
-Volume 24h: ${formatLargeNumber(volume24h)}
-CMC Rank: ${cmcRank ? cmcRank : 'N/A'}
+Current Price: ${formatMetric(currentPrice, value => `$${formatPrice(value)}`)}
+Price Change (%) 1h: ${formatMetric(priceChange1h, formatPercentage)}
+Price Change (%) 24h: ${formatMetric(priceChange24h, formatPercentage)}
+Market Cap: ${formatMetric(marketCap, formatLargeNumber)}
+Volume 24h: ${formatMetric(volume24h, formatLargeNumber)}
+CMC Rank: ${formatRank(cmcRank)}
 
-💵 Total Crypto Market Cap: ${formatLargeNumber(totalCryptoMarketCap)}`;
+💵 Total Crypto Market Cap: ${formatMetric(totalCryptoMarketCap, formatLargeNumber)}`;
 }
 
 module.exports = { renderPriceMessage };

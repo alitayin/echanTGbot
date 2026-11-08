@@ -40,6 +40,7 @@ const { handleTimeCommand } = require('../../application/usecases/timeHandler.js
 const { renderTimeMessage } = require('../views/timeView.js');
 const { getHelpMenu } = require('../views/helpMenuData.js');
 const { ALLOWED_USERS, BOT_USERNAME } = require('../../../config/config.js');
+const { withTimeout } = require('../../domain/utils/async.js');
 
 /**
  * Command handlers - each handler is a simple async function
@@ -365,12 +366,7 @@ async function handleTime(msg, bot) {
     const loadingMessage = await sendPromptMessage(bot, msg.chat.id, '⏰ Getting time...');
 
     const executeTimeCommand = async () => {
-        return Promise.race([
-            handleTimeCommand(countryNames),
-            new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Timeout')), 5000)
-            )
-        ]);
+        return withTimeout(handleTimeCommand(countryNames), 5000, 'World time request timed out');
     };
 
     let lastError = null;
@@ -394,7 +390,7 @@ async function handleTime(msg, bot) {
     }
 
     console.error('Time command failed after 2 attempts:', lastError);
-    await bot.editMessageText('❌ Try again please', {
+    await bot.editMessageText('❌ Could not get the world time. Please try again in a moment.', {
         chat_id: msg.chat.id,
         message_id: loadingMessage.message_id
     });

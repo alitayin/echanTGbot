@@ -18,18 +18,18 @@ async function getFallbackPriceData() {
             console.error('Fallback API returned empty data:', marketsData);
             throw new Error('eCash data not found in fallback API');
         }
-        if (!globalData || !globalData.data || !globalData.data.total_market_cap) {
+        if (!globalData?.data?.total_market_cap?.usd) {
             console.error('Fallback API global data error:', globalData);
         }
 
         return {
             currentPrice: coinData.current_price,
-            priceChange1h: 0,
+            priceChange1h: null,
             priceChange24h: coinData.price_change_percentage_24h || 0,
             marketCap: coinData.market_cap,
             volume24h: coinData.total_volume,
             cmcRank: cmcRank,
-            totalCryptoMarketCap: globalData.data.total_market_cap.usd
+            totalCryptoMarketCap: globalData?.data?.total_market_cap?.usd ?? null
         };
     } catch (error) {
         console.error('Failed to fetch price data:', error.message);
