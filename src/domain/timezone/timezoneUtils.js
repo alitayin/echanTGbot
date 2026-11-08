@@ -9,7 +9,7 @@ function formatTimeForTimezone(date, timezone) {
     try {
         const formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: timezone,
-            hour12: false,
+            hourCycle: 'h23',
             hour: '2-digit',
             minute: '2-digit',
             weekday: 'short',
@@ -24,7 +24,9 @@ function formatTimeForTimezone(date, timezone) {
 
 /** Parse a "UTC+X" / "UTC-X" string into a numeric hour offset, or null. */
 function parseUTCOffset(input) {
-    const match = input.match(/^utc([+-]?\d+(?:\.\d+)?)$/i);
+    if (typeof input !== 'string') return null;
+
+    const match = input.trim().match(/^utc([+-]?\d+(?:\.\d+)?)$/i);
     if (match) {
         const offset = parseFloat(match[1]);
         if (offset >= -12 && offset <= 14) {
@@ -39,7 +41,7 @@ function formatTimeForUTCOffset(date, offset) {
     const utcTime = date.getTime() + date.getTimezoneOffset() * 60000;
     const targetTime = new Date(utcTime + offset * 3600000);
     const formatter = new Intl.DateTimeFormat('en-US', {
-        hour12: false,
+        hourCycle: 'h23',
         hour: '2-digit',
         minute: '2-digit',
         weekday: 'short',

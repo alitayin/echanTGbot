@@ -7,6 +7,7 @@ const helpMenuData = {
                 [{ text: '📝 /signup - Register Address', callback_data: 'cmd_signup' }],
                 [{ text: '👛 /mywallet - My Wallet', callback_data: 'cmd_mywallet' }],
                 [{ text: '💵 /price - Price Query', callback_data: 'cmd_price' }],
+                [{ text: '🗻 /ava - Avalanche Update', callback_data: 'cmd_ava' }],
                 [{ text: '🔍 /explorer - Address Query', callback_data: 'cmd_explorer' }],
                 [{ text: '⏰ /time - World Time', callback_data: 'cmd_time' }],
                 [{ text: '🌐 /translate - Translation', callback_data: 'cmd_translate' }],
@@ -116,6 +117,10 @@ const helpMenuData = {
         },
         cmd_price: {
             text: '💵 <b>/price</b>\n\nGet current eCash (XEC) real-time price data.\n\n<b>Usage:</b>\n<code>/price</code>\n\n<b>Note:</b>\nDisplays price, market cap, 24h change, and more',
+            keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
+        },
+        cmd_ava: {
+            text: '🗻 <b>/ava</b>\n\nGet the latest eCash Avalanche network summary, including stake, APY, peers, and nodes.\n\n<b>Usage:</b>\n<code>/ava</code>',
             keyboard: [[{ text: '🔙 Back to Menu', callback_data: 'help_main' }]]
         },
         cmd_explorer: {
@@ -242,6 +247,8 @@ const helpMenuData = {
 };
 
 function getHelpMenu(callbackData, isAdmin) {
+    if (typeof callbackData !== 'string') return null;
+
     if (callbackData === 'help_main') {
         return isAdmin ? helpMenuData.main.admin : helpMenuData.main.user;
     }

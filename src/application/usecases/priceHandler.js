@@ -15,7 +15,7 @@ async function getFallbackPriceData() {
         const coinData = Array.isArray(marketsData) ? marketsData[0] : null;
 
         if (!coinData) {
-            console.error('Fallback API returned empty data:', marketsResponse.data);
+            console.error('Fallback API returned empty data:', marketsData);
             throw new Error('eCash data not found in fallback API');
         }
         if (!globalData || !globalData.data || !globalData.data.total_market_cap) {
@@ -51,4 +51,4 @@ module.exports = {
     getXECPriceData,
     getFallbackPriceData,
     handlePriceCommand
-}; 
+};

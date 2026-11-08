@@ -6,6 +6,15 @@ describe('withTimeout', () => {
         const result = await withTimeout(() => Promise.resolve(42), 1000);
         expect(result).toBe(42);
     });
+    it('clears the timer when the task finishes first', async () => {
+        vi.useFakeTimers();
+        try {
+            await expect(withTimeout(Promise.resolve('ok'), 1000)).resolves.toBe('ok');
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
     it('accepts a promise directly (not just a function)', async () => {
         const result = await withTimeout(Promise.resolve('ok'), 1000);
         expect(result).toBe('ok');
