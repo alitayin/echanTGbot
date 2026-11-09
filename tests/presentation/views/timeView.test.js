@@ -11,4 +11,16 @@ describe('renderTimeMessage', () => {
 
         expect(message).toContain('Unrecognized locations: New Atlantis');
     });
+
+    it('keeps oversized replies within Telegram length limits without splitting emoji', () => {
+        const message = renderTimeMessage({
+            times: [],
+            unrecognizedInputs: ['😀'.repeat(3000)],
+            standard: null,
+        });
+
+        expect(message.length).toBeLessThanOrEqual(4096);
+        expect(message.endsWith('...')).toBe(true);
+        expect(message.slice(0, -3).endsWith('😀')).toBe(true);
+    });
 });

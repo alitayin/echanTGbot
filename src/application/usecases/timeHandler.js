@@ -3,23 +3,8 @@ const {
     formatTimeForUTCOffset,
     parseUTCOffset,
     findCountry,
+    findExactLocation,
 } = require('../../domain/timezone/timezoneUtils.js');
-const { COUNTRIES, CITY_TO_COUNTRY } = require('../../domain/timezone/timezoneData.js');
-
-function normalizeLocation(value) {
-    return value.toLowerCase().trim().replace(/[\s-]/g, '');
-}
-
-function findExactCountry(input) {
-    const normalized = normalizeLocation(input);
-    const cityMatch = Object.prototype.hasOwnProperty.call(CITY_TO_COUNTRY, normalized)
-        ? CITY_TO_COUNTRY[normalized]
-        : null;
-    const countryName = cityMatch
-        || COUNTRIES.find(country => normalizeLocation(country.name) === normalized)?.name;
-
-    return countryName ? COUNTRIES.find(country => country.name === countryName) || null : null;
-}
 
 function resolveInputs(inputs) {
     const values = inputs;
@@ -48,7 +33,7 @@ function resolveInputs(inputs) {
         const maxLocationWords = Math.min(3, values.length - index);
         for (let length = maxLocationWords; length > 1; length -= 1) {
             const candidate = values.slice(index, index + length).join(' ');
-            exactCountry = findExactCountry(candidate);
+            exactCountry = findExactLocation(candidate);
             if (exactCountry) {
                 matchedLength = length;
                 break;

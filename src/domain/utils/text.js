@@ -67,13 +67,28 @@ function getTextContent(msg) {
 /**
  * Truncate text to a maximum length with ellipsis
  * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length before truncation
+ * @param {number} maxLength - Maximum UTF-16 length, including the suffix
  * @param {string} suffix - Suffix to append when truncated (default: '...')
  * @returns {string} Truncated text
  */
 function truncate(text, maxLength, suffix = '...') {
     const str = String(text || '');
-    return str.length > maxLength ? str.substring(0, maxLength) + suffix : str;
+    if (!Number.isFinite(maxLength)) return str;
+
+    const limit = Math.max(0, Math.floor(maxLength));
+    if (str.length <= limit) return str;
+
+    const marker = String(suffix ?? '');
+    const safePrefix = (value, length) => {
+        const prefix = value.slice(0, Math.max(0, length));
+        const lastCodeUnit = prefix.charCodeAt(prefix.length - 1);
+        return lastCodeUnit >= 0xD800 && lastCodeUnit <= 0xDBFF
+            ? prefix.slice(0, -1)
+            : prefix;
+    };
+
+    if (marker.length >= limit) return safePrefix(marker, limit);
+    return safePrefix(str, limit - marker.length) + marker;
 }
 
 module.exports = {

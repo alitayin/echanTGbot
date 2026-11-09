@@ -2,23 +2,43 @@ const { fetchAvalancheSummary, fetchAvalancheAPY, fetchXecSimplePrice } = requir
 
 async function getAvalancheData() {
     try {
-        const [summaryData, apyData, priceData] = await Promise.all([
+        const [summaryResult, apyResult, priceResult] = await Promise.allSettled([
             fetchAvalancheSummary(),
             fetchAvalancheAPY(),
             fetchXecSimplePrice()
         ]);
 
+        if (summaryResult.status === 'rejected') {
+            throw summaryResult.reason;
+        }
+        const summaryData = summaryResult.value;
+        if (!summaryData || typeof summaryData !== 'object' || Array.isArray(summaryData)) {
+            throw new Error('Avalanche summary data is unavailable');
+        }
+        const apyData = apyResult.status === 'fulfilled' ? apyResult.value : null;
+        const priceData = priceResult.status === 'fulfilled' ? priceResult.value : null;
+
+        if (apyResult.status === 'rejected') {
+            console.error('Avalanche APY request failed:', apyResult.reason?.message || apyResult.reason);
+        }
+        if (priceResult.status === 'rejected') {
+            console.error('Avalanche price request failed:', priceResult.reason?.message || priceResult.reason);
+        }
+
         const reportedXecPrice = priceData?.ecash?.usd;
-        const xecPrice = Number.isFinite(reportedXecPrice) ? reportedXecPrice : null;
-        const totalStakedValue = Number.isFinite(summaryData.totalStake) && xecPrice !== null
-            ? summaryData.totalStake * xecPrice
+        const xecPrice = Number.isFinite(reportedXecPrice) && reportedXecPrice >= 0 ? reportedXecPrice : null;
+        const totalStake = Number.isFinite(summaryData.totalStake) && summaryData.totalStake >= 0
+            ? summaryData.totalStake : null;
+        const computedValue = totalStake !== null && xecPrice !== null
+            ? totalStake * xecPrice
             : null;
+        const totalStakedValue = Number.isFinite(computedValue) ? computedValue : null;
 
         return {
-            totalStake: summaryData.totalStake,
+            totalStake,
             nodeCount: summaryData.nodeCount,
             proofCount: summaryData.proofCount,
-            apy: apyData.apy,
+            apy: apyData?.apy ?? null,
             xecPrice: xecPrice,
             totalStakedValue: totalStakedValue,
             timeStamp: summaryData.timeStamp,

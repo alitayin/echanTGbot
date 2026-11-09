@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { renderPriceMessage } from '../../../src/presentation/views/priceView.js';
 
 describe('renderPriceMessage', () => {
+    it('returns an unavailable message for a missing response', () => {
+        expect(renderPriceMessage(null)).toContain('Price data unavailable');
+    });
     it('marks missing metrics as unavailable instead of zero', () => {
         const message = renderPriceMessage({
             priceChange1h: null,

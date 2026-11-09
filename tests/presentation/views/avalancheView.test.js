@@ -22,4 +22,8 @@ describe('renderAvalancheMessage', () => {
     it('renders an unavailable response when no data object is supplied', () => {
         expect(renderAvalancheMessage(null)).toBe('Avalanche data unavailable.');
     });
+
+    it('does not render overflowing APY percentages as Infinity', () => {
+        expect(renderAvalancheMessage({ apy: Number.MAX_VALUE })).toContain('Current APY: N/A');
+    });
 });

@@ -18,7 +18,7 @@ function renderAvalancheMessage(avalancheData) {
         totalStakedValue
     } = avalancheData;
     const stake = Number.isFinite(totalStake) ? `${formatStake(totalStake)} XEC` : 'N/A';
-    const apyText = Number.isFinite(apy) ? `${(apy * 100).toFixed(1)}%` : 'N/A';
+    const apyText = Number.isFinite(apy) && Number.isFinite(apy * 100) ? `${(apy * 100).toFixed(1)}%` : 'N/A';
     const value = Number.isFinite(totalStakedValue) ? formatCurrencyValue(totalStakedValue) : 'N/A';
 
     return `🗻 eCash Avalanche Network Update

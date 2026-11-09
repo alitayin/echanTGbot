@@ -7,6 +7,7 @@ import {
     getUserDisplayName,
     extractUsername,
     getTextContent,
+    truncate,
 } from '../../../src/domain/utils/text.js';
 
 describe('escapeRegex', () => {
@@ -117,5 +118,17 @@ describe('getTextContent', () => {
     it('returns only quote when no main content', () => {
         const msg = { quote: { text: 'quoted' } };
         expect(getTextContent(msg)).toBe('[Quoted]: quoted');
+    });
+});
+
+describe('truncate', () => {
+    it('includes the suffix within the maximum length', () => {
+        expect(truncate('abcdefgh', 5)).toBe('ab...');
+        expect(truncate('abc', 5)).toBe('abc');
+    });
+
+    it('does not split a surrogate pair and respects short limits', () => {
+        expect(truncate('abc😀z', 5, '.')).toBe('abc.');
+        expect(truncate('abcdef', 2, '...')).toBe('..');
     });
 });

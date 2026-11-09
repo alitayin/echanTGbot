@@ -12,6 +12,9 @@ function formatRank(rank) {
 
 /** Render price message. */
 function renderPriceMessage(priceData) {
+    if (!priceData || typeof priceData !== 'object' || Array.isArray(priceData)) {
+        return 'Price data unavailable. Please try again in a moment.';
+    }
     const {
         currentPrice,
         priceChange1h,

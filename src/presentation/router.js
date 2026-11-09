@@ -35,15 +35,9 @@ const {
     handleTranslateCommand
 } = require('../application/usecases/translationHandler.js');
 const { getHelpMenu, helpMenuData } = require('./views/helpMenuData.js');
+const { handleHelpMenuCallback } = require('./routes/helpMenuCallback.js');
 const { createCommandRouter, LIMITED_MODE, FEATURE_DISABLED_MSGS } = require('./routes/commandRegistry.js');
 const { isProtectionEnabled } = require('../infrastructure/storage/protectionState.js');
-
-function withTimeout(promise, ms) {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms))
-    ]);
-}
 
 function pickDisabledMsg() {
     const i = Math.floor(Math.random() * FEATURE_DISABLED_MSGS.length);
@@ -582,15 +576,7 @@ function registerRoutes(bot) {
                 const menuData = getHelpMenu(callbackData, isAdmin);
 
                 if (menuData) {
-                    await withTimeout(bot.editMessageText(menuData.text, {
-                        chat_id: query.message.chat.id,
-                        message_id: query.message.message_id,
-                        parse_mode: 'HTML',
-                        reply_markup: {
-                            inline_keyboard: menuData.keyboard
-                        }
-                    }), 5000);
-                    await bot.answerCallbackQuery(query.id);
+                    await handleHelpMenuCallback(query, bot, menuData);
                 } else {
                     await bot.answerCallbackQuery(query.id, {
                         text: '❌ Menu not found',

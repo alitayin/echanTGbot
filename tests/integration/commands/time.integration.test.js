@@ -1,16 +1,39 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import Module, { createRequire } from 'module';
 import { MockTelegramBot } from '../../helpers/MockTelegramBot.js';
+
+const require = createRequire(import.meta.url);
+const originalLoad = Module._load;
+const commandHandlersPath = require.resolve('../../../src/presentation/routes/commandHandlers.js');
+const timeHandlerPath = require.resolve('../../../src/application/usecases/timeHandler.js');
 
 const timeHandlerMocks = vi.hoisted(() => ({
     handleTimeCommand: vi.fn(),
 }));
 
-vi.mock('../../../src/application/usecases/timeHandler.js', () => timeHandlerMocks);
-
-import { handleTime } from '../../../src/presentation/routes/commandHandlers.js';
+let handleTime;
 
 describe('time command route', () => {
+    beforeEach(() => {
+        Module._load = function patchedLoad(request, parent, isMain) {
+            // Time routing does not use the other commands or their storage/network clients.
+            if (parent?.filename === commandHandlersPath && (
+                request.startsWith('../../application/usecases/') && request !== '../../application/usecases/timeHandler.js'
+                || request === '../../infrastructure/storage/userAddressStore.js'
+            )) return {};
+            const resolved = Module._resolveFilename(request, parent, isMain);
+            if (resolved === timeHandlerPath) return timeHandlerMocks;
+            return originalLoad.call(this, request, parent, isMain);
+        };
+
+        delete require.cache[commandHandlersPath];
+        ({ handleTime } = require(commandHandlersPath));
+        vi.clearAllMocks();
+    });
+
     afterEach(() => {
+        Module._load = originalLoad;
+        delete require.cache[commandHandlersPath];
         vi.useRealTimers();
         vi.clearAllMocks();
     });

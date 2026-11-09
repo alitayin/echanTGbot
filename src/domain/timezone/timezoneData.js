@@ -182,8 +182,24 @@ const CITY_TO_COUNTRY = {
     'harare': 'Zimbabwe',
 };
 
+// Cities that differ from their country's default timezone.
+const CITY_TIMEZONES = {
+    losangeles: { name: 'Los Angeles', tz: 'America/Los_Angeles' },
+    la: { name: 'Los Angeles', tz: 'America/Los_Angeles' },
+    sanfrancisco: { name: 'San Francisco', tz: 'America/Los_Angeles' },
+    seattle: { name: 'Seattle', tz: 'America/Los_Angeles' },
+    chicago: { name: 'Chicago', tz: 'America/Chicago' },
+    vancouver: { name: 'Vancouver', tz: 'America/Vancouver' },
+    novosibirsk: { name: 'Novosibirsk', tz: 'Asia/Novosibirsk' },
+    bali: { name: 'Bali', tz: 'Asia/Makassar' },
+    brisbane: { name: 'Brisbane', tz: 'Australia/Brisbane' },
+    perth: { name: 'Perth', tz: 'Australia/Perth' },
+    adelaide: { name: 'Adelaide', tz: 'Australia/Adelaide' },
+};
+
 module.exports = {
     COUNTRIES,
-    CITY_TO_COUNTRY
+    CITY_TO_COUNTRY,
+    CITY_TIMEZONES,
 };
 

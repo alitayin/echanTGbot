@@ -1,3 +1,7 @@
+const { truncate } = require('../../domain/utils/text.js');
+
+const MAX_TELEGRAM_MESSAGE_LENGTH = 4096;
+
 function renderTimeMessage(timeData) {
     const { times, standard, unrecognizedInputs } = timeData;
 
@@ -21,7 +25,7 @@ function renderTimeMessage(timeData) {
         message += `\n⚠️ Unrecognized locations: ${unrecognizedInputs.join(', ')}\n`;
     }
 
-    return message;
+    return truncate(message, MAX_TELEGRAM_MESSAGE_LENGTH);
 }
 
 module.exports = { renderTimeMessage };
