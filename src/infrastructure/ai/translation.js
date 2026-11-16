@@ -19,14 +19,17 @@ async function translateToEnglishIfTargetGroup(msg, bot) {
     return false;
   }
 
-  // Ignore empty/too-short content (including images without captions)
-  const query = (msg.text || msg.caption || '').trim();
-  if (!query || query.length < 5) {
+  
+  // Strip URLs and ignore if nothing meaningful is left
+  const raw = (msg.text || msg.caption || '').trim();
+  const stripped = raw.replace(/https?:\/\/\S+/g, '').trim();
+  if (!stripped || stripped.length < 5) {
     return false;
   }
 
+
   try {
-    const translatedText = await translateText(query, 'English', msg.from.id);
+    const translatedText = await translateText(stripped, 'English', msg.from.id);
     if (!translatedText) return false;
     const sent = await bot.sendMessage(msg.chat.id, `🔄 Translation: ${translatedText}`, {
       reply_to_message_id: msg.message_id,
